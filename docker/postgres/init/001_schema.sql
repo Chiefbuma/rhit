@@ -59,3 +59,51 @@ CREATE TABLE IF NOT EXISTS applications (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Create the portal_users table
+CREATE TABLE IF NOT EXISTS portal_users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    full_name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    phone VARCHAR(255),
+    password_hash VARCHAR(255) NOT NULL,
+    status VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create the portal_sessions table
+CREATE TABLE IF NOT EXISTS portal_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES portal_users(id) ON DELETE CASCADE,
+    token_hash VARCHAR(255) NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create the portal_roles table
+CREATE TABLE IF NOT EXISTS portal_roles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL UNIQUE
+);
+
+-- Create the portal_permissions table
+CREATE TABLE IF NOT EXISTS portal_permissions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    permission_key VARCHAR(255) NOT NULL UNIQUE
+);
+
+-- Create the portal_user_roles table
+CREATE TABLE IF NOT EXISTS portal_user_roles (
+    user_id UUID NOT NULL REFERENCES portal_users(id) ON DELETE CASCADE,
+    role_id UUID NOT NULL REFERENCES portal_roles(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, role_id)
+);
+
+-- Create the portal_role_permissions table
+CREATE TABLE IF NOT EXISTS portal_role_permissions (
+    role_id UUID NOT NULL REFERENCES portal_roles(id) ON DELETE CASCADE,
+    permission_id UUID NOT NULL REFERENCES portal_permissions(id) ON DELETE CASCADE,
+    allowed BOOLEAN NOT NULL DEFAULT true,
+    PRIMARY KEY (role_id, permission_id)
+);
