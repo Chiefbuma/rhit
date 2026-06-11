@@ -14,6 +14,7 @@ import {
   UserRound,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { ModalForm } from "@/components/ui/modal-form";
 
 type Option = { id: string; label: string };
 
@@ -163,8 +164,8 @@ async function createInvoice(studentId: string, formData: FormData) {
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="block">
-      <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-dark/50">{label}</span>
+    <label className="grid gap-2 sm:grid-cols-[160px_1fr] sm:items-start">
+      <span className="pt-2 text-[10px] font-black uppercase tracking-widest text-dark/50">{label}</span>
       {children}
     </label>
   );
@@ -420,97 +421,139 @@ export default async function AdminStudentDashboardPage({ params }: { params: Pr
       <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
         <div className="space-y-6">
           <Panel title="Registration Profile" icon={<UserRound size={20} />}>
-            <form action={profileAction} className="grid gap-4">
-              <Field label="Full Name"><input name="full_name" defaultValue={student.full_name} className={inputClass()} required /></Field>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Email"><input name="email" defaultValue={student.email ?? ""} className={inputClass()} required /></Field>
-                <Field label="Phone"><input name="phone" defaultValue={student.phone ?? ""} className={inputClass()} required /></Field>
-                <Field label="Date of Birth"><input type="date" name="date_of_birth" defaultValue={student.date_of_birth ?? ""} className={inputClass()} /></Field>
-                <Field label="Gender">
-                  <select name="gender" defaultValue={student.gender ?? "Not Provided"} className={inputClass()}>
-                    <option>Female</option>
-                    <option>Male</option>
-                    <option>Not Provided</option>
-                  </select>
-                </Field>
-                <Field label="National ID"><input name="national_id" defaultValue={student.national_id ?? ""} className={inputClass()} /></Field>
-                <Field label="Residence"><input name="residence" defaultValue={student.residence ?? ""} className={inputClass()} /></Field>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Next of Kin"><input name="next_of_kin_name" defaultValue={student.next_of_kin_name ?? ""} className={inputClass()} /></Field>
-                <Field label="Kin Phone"><input name="next_of_kin_phone" defaultValue={student.next_of_kin_phone ?? ""} className={inputClass()} /></Field>
-              </div>
-              <Field label="Kin Relationship"><input name="next_of_kin_relationship" defaultValue={student.next_of_kin_relationship ?? ""} className={inputClass()} /></Field>
-              <Field label="Status">
-                <select name="status" defaultValue={student.status} className={inputClass()}>
-                  <option value="active">Active</option>
-                  <option value="deferred">Deferred</option>
-                  <option value="suspended">Suspended</option>
-                  <option value="completed">Completed</option>
-                  <option value="graduated">Graduated</option>
-                  <option value="archived">Archived</option>
-                </select>
-              </Field>
-              <button className="bg-primary px-4 py-3 text-sm font-black uppercase tracking-widest text-white hover:bg-dark">Update Profile</button>
-            </form>
+            <div className="space-y-3 text-sm">
+              <p><span className="font-bold">Email:</span> {student.email ?? "-"}</p>
+              <p><span className="font-bold">Phone:</span> {student.phone ?? "-"}</p>
+              <p><span className="font-bold">Next of Kin:</span> {student.next_of_kin_name ?? "-"} · {student.next_of_kin_phone ?? "-"}</p>
+              <p><span className="font-bold">Status:</span> {student.status}</p>
+            </div>
+            <div className="mt-4">
+              <ModalForm
+                title="Edit Student Profile"
+                description="Update registration, contact, and next-of-kin details."
+                widthClassName="max-w-3xl"
+                trigger={<span className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-xs font-black uppercase tracking-widest text-white hover:bg-dark">Edit Profile</span>}
+              >
+                <form action={profileAction} className="space-y-4">
+                  <Field label="Full Name"><input name="full_name" defaultValue={student.full_name} className={inputClass()} required /></Field>
+                  <Field label="Email"><input name="email" defaultValue={student.email ?? ""} className={inputClass()} required /></Field>
+                  <Field label="Phone"><input name="phone" defaultValue={student.phone ?? ""} className={inputClass()} required /></Field>
+                  <Field label="Date of Birth"><input type="date" name="date_of_birth" defaultValue={student.date_of_birth ?? ""} className={inputClass()} /></Field>
+                  <Field label="Gender">
+                    <select name="gender" defaultValue={student.gender ?? "Not Provided"} className={inputClass()}>
+                      <option>Female</option>
+                      <option>Male</option>
+                      <option>Not Provided</option>
+                    </select>
+                  </Field>
+                  <Field label="National ID"><input name="national_id" defaultValue={student.national_id ?? ""} className={inputClass()} /></Field>
+                  <Field label="Residence"><input name="residence" defaultValue={student.residence ?? ""} className={inputClass()} /></Field>
+                  <Field label="Next of Kin"><input name="next_of_kin_name" defaultValue={student.next_of_kin_name ?? ""} className={inputClass()} /></Field>
+                  <Field label="Kin Phone"><input name="next_of_kin_phone" defaultValue={student.next_of_kin_phone ?? ""} className={inputClass()} /></Field>
+                  <Field label="Kin Relationship"><input name="next_of_kin_relationship" defaultValue={student.next_of_kin_relationship ?? ""} className={inputClass()} /></Field>
+                  <Field label="Status">
+                    <select name="status" defaultValue={student.status} className={inputClass()}>
+                      <option value="active">Active</option>
+                      <option value="deferred">Deferred</option>
+                      <option value="suspended">Suspended</option>
+                      <option value="completed">Completed</option>
+                      <option value="graduated">Graduated</option>
+                      <option value="archived">Archived</option>
+                    </select>
+                  </Field>
+                  <div className="flex justify-end border-t border-[hsl(var(--border))] pt-4">
+                    <button className="rounded-md bg-primary px-4 py-2 text-xs font-black uppercase tracking-widest text-white hover:bg-dark">Update Profile</button>
+                  </div>
+                </form>
+              </ModalForm>
+            </div>
           </Panel>
 
           <Panel title="Program Assignment" icon={<GraduationCap size={20} />}>
-            <form action={enrollmentAction} className="grid gap-4">
-              <input type="hidden" name="enrollment_id" value={enrollment?.id ?? ""} />
-              <Field label="Program"><SelectField name="program_id" defaultValue={programId} options={programs.rows} /></Field>
-              <Field label="Cohort"><SelectField name="cohort_id" defaultValue={cohortId} options={cohorts.rows} /></Field>
-              <Field label="Class"><SelectField name="class_id" defaultValue={classId} options={classes.rows} /></Field>
-              <Field label="Status">
-                <select name="status" defaultValue={enrollment?.status ?? "active"} className={inputClass()}>
-                  <option value="active">Active</option>
-                  <option value="deferred">Deferred</option>
-                  <option value="completed">Completed</option>
-                  <option value="withdrawn">Withdrawn</option>
-                  <option value="archived">Archived</option>
-                </select>
-              </Field>
-              <button className="bg-primary px-4 py-3 text-sm font-black uppercase tracking-widest text-white hover:bg-dark">Save Assignment</button>
-            </form>
+            <div className="space-y-3 text-sm">
+              <p><span className="font-bold">Program:</span> {enrollment?.program ?? "Not assigned"}</p>
+              <p><span className="font-bold">Cohort:</span> {enrollment?.cohort ?? "Not assigned"}</p>
+              <p><span className="font-bold">Class:</span> {enrollment?.class ?? "Not assigned"}</p>
+            </div>
+            <div className="mt-4">
+              <ModalForm
+                title="Assign Program"
+                description="Assign this student to a program, cohort, and class."
+                trigger={<span className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-xs font-black uppercase tracking-widest text-white hover:bg-dark">Assign</span>}
+              >
+                <form action={enrollmentAction} className="space-y-4">
+                  <input type="hidden" name="enrollment_id" value={enrollment?.id ?? ""} />
+                  <Field label="Program"><SelectField name="program_id" defaultValue={programId} options={programs.rows} /></Field>
+                  <Field label="Cohort"><SelectField name="cohort_id" defaultValue={cohortId} options={cohorts.rows} /></Field>
+                  <Field label="Class"><SelectField name="class_id" defaultValue={classId} options={classes.rows} /></Field>
+                  <Field label="Status">
+                    <select name="status" defaultValue={enrollment?.status ?? "active"} className={inputClass()}>
+                      <option value="active">Active</option>
+                      <option value="deferred">Deferred</option>
+                      <option value="completed">Completed</option>
+                      <option value="withdrawn">Withdrawn</option>
+                      <option value="archived">Archived</option>
+                    </select>
+                  </Field>
+                  <div className="flex justify-end border-t border-[hsl(var(--border))] pt-4">
+                    <button className="rounded-md bg-primary px-4 py-2 text-xs font-black uppercase tracking-widest text-white hover:bg-dark">Save Assignment</button>
+                  </div>
+                </form>
+              </ModalForm>
+            </div>
           </Panel>
 
           <Panel title="Onboarding" icon={<CheckCircle2 size={20} />}>
-            <form action={onboardingAction} className="grid gap-4">
-              <input type="hidden" name="enrollment_id" value={enrollment?.id ?? ""} />
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Status">
-                  <select name="status" defaultValue={onboarding.status} className={inputClass()}>
-                    <option value="pending">Pending</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="completed">Completed</option>
-                    <option value="blocked">Blocked</option>
-                  </select>
-                </Field>
-                <Field label="Documents">
-                  <select name="documents_status" defaultValue={onboarding.documents_status} className={inputClass()}>
-                    <option value="pending">Pending</option>
-                    <option value="submitted">Submitted</option>
-                    <option value="verified">Verified</option>
-                    <option value="rejected">Rejected</option>
-                  </select>
-                </Field>
-                <Field label="Orientation">
-                  <select name="orientation_status" defaultValue={onboarding.orientation_status} className={inputClass()}>
-                    <option value="pending">Pending</option>
-                    <option value="scheduled">Scheduled</option>
-                    <option value="completed">Completed</option>
-                  </select>
-                </Field>
-                <Field label="Policies">
-                  <select name="policies_status" defaultValue={onboarding.policies_status} className={inputClass()}>
-                    <option value="pending">Pending</option>
-                    <option value="accepted">Accepted</option>
-                  </select>
-                </Field>
-              </div>
-              <Field label="Notes"><textarea name="notes" defaultValue={onboarding.notes ?? ""} className={inputClass()} rows={3} /></Field>
-              <button className="bg-primary px-4 py-3 text-sm font-black uppercase tracking-widest text-white hover:bg-dark">Update Onboarding</button>
-            </form>
+            <div className="space-y-3 text-sm">
+              <p><span className="font-bold">Status:</span> {onboarding.status}</p>
+              <p><span className="font-bold">Documents:</span> {onboarding.documents_status}</p>
+              <p><span className="font-bold">Orientation:</span> {onboarding.orientation_status}</p>
+              <p><span className="font-bold">Policies:</span> {onboarding.policies_status}</p>
+            </div>
+            <div className="mt-4">
+              <ModalForm
+                title="Update Onboarding"
+                description="Track documents, orientation, policies, and onboarding progress."
+                trigger={<span className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-xs font-black uppercase tracking-widest text-white hover:bg-dark">Update</span>}
+              >
+                <form action={onboardingAction} className="space-y-4">
+                  <input type="hidden" name="enrollment_id" value={enrollment?.id ?? ""} />
+                  <Field label="Status">
+                    <select name="status" defaultValue={onboarding.status} className={inputClass()}>
+                      <option value="pending">Pending</option>
+                      <option value="in_progress">In Progress</option>
+                      <option value="completed">Completed</option>
+                      <option value="blocked">Blocked</option>
+                    </select>
+                  </Field>
+                  <Field label="Documents">
+                    <select name="documents_status" defaultValue={onboarding.documents_status} className={inputClass()}>
+                      <option value="pending">Pending</option>
+                      <option value="submitted">Submitted</option>
+                      <option value="verified">Verified</option>
+                      <option value="rejected">Rejected</option>
+                    </select>
+                  </Field>
+                  <Field label="Orientation">
+                    <select name="orientation_status" defaultValue={onboarding.orientation_status} className={inputClass()}>
+                      <option value="pending">Pending</option>
+                      <option value="scheduled">Scheduled</option>
+                      <option value="completed">Completed</option>
+                    </select>
+                  </Field>
+                  <Field label="Policies">
+                    <select name="policies_status" defaultValue={onboarding.policies_status} className={inputClass()}>
+                      <option value="pending">Pending</option>
+                      <option value="accepted">Accepted</option>
+                    </select>
+                  </Field>
+                  <Field label="Notes"><textarea name="notes" defaultValue={onboarding.notes ?? ""} className={inputClass()} rows={3} /></Field>
+                  <div className="flex justify-end border-t border-[hsl(var(--border))] pt-4">
+                    <button className="rounded-md bg-primary px-4 py-2 text-xs font-black uppercase tracking-widest text-white hover:bg-dark">Update Onboarding</button>
+                  </div>
+                </form>
+              </ModalForm>
+            </div>
           </Panel>
         </div>
 
@@ -561,10 +604,20 @@ export default async function AdminStudentDashboardPage({ params }: { params: Pr
           </div>
 
           <Panel title="Resources" icon={<LibraryBig size={20} />}>
-            <form action={resourceAction} className="mb-4 grid gap-3 md:grid-cols-[1fr_auto]">
-              <SelectField name="resource_id" options={resources.rows} />
-              <button className="bg-primary px-4 py-3 text-sm font-black uppercase tracking-widest text-white hover:bg-dark">Assign</button>
-            </form>
+            <div className="mb-4">
+              <ModalForm
+                title="Assign Resource"
+                description="Assign a learning resource directly to this student."
+                trigger={<span className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-xs font-black uppercase tracking-widest text-white hover:bg-dark">Assign Resource</span>}
+              >
+                <form action={resourceAction} className="space-y-4">
+                  <Field label="Resource"><SelectField name="resource_id" options={resources.rows} /></Field>
+                  <div className="flex justify-end border-t border-[hsl(var(--border))] pt-4">
+                    <button className="rounded-md bg-primary px-4 py-2 text-xs font-black uppercase tracking-widest text-white hover:bg-dark">Assign</button>
+                  </div>
+                </form>
+              </ModalForm>
+            </div>
             <div className="grid gap-3 md:grid-cols-2">
               {assignedResources.rows.map((resource) => (
                 <div key={`${resource.title}-${resource.source}`} className="border border-dark/10 p-4">
@@ -579,16 +632,24 @@ export default async function AdminStudentDashboardPage({ params }: { params: Pr
 
           <div className="grid gap-6 lg:grid-cols-2">
             <Panel title="Fees" icon={<Banknote size={20} />}>
-              <form action={invoiceAction} className="mb-4 grid gap-3">
-                <Field label="Invoice Number"><input name="invoice_number" className={inputClass()} required /></Field>
-                <Field label="Description"><input name="description" className={inputClass()} required /></Field>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Amount"><input name="amount_kes" type="number" className={inputClass()} required /></Field>
-                  <Field label="Due On"><input name="due_on" type="date" className={inputClass()} /></Field>
-                </div>
-                <input type="hidden" name="status" value="unpaid" />
-                <button className="bg-primary px-4 py-3 text-sm font-black uppercase tracking-widest text-white hover:bg-dark">Create Invoice</button>
-              </form>
+              <div className="mb-4">
+                <ModalForm
+                  title="Create Invoice"
+                  description="Create a fee invoice for this student."
+                  trigger={<span className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-xs font-black uppercase tracking-widest text-white hover:bg-dark">Create Invoice</span>}
+                >
+                  <form action={invoiceAction} className="space-y-4">
+                    <Field label="Invoice Number"><input name="invoice_number" className={inputClass()} required /></Field>
+                    <Field label="Description"><input name="description" className={inputClass()} required /></Field>
+                    <Field label="Amount"><input name="amount_kes" type="number" className={inputClass()} required /></Field>
+                    <Field label="Due On"><input name="due_on" type="date" className={inputClass()} /></Field>
+                    <input type="hidden" name="status" value="unpaid" />
+                    <div className="flex justify-end border-t border-[hsl(var(--border))] pt-4">
+                      <button className="rounded-md bg-primary px-4 py-2 text-xs font-black uppercase tracking-widest text-white hover:bg-dark">Create Invoice</button>
+                    </div>
+                  </form>
+                </ModalForm>
+              </div>
               {invoices.rows.map((invoice) => (
                 <div key={invoice.invoice_number} className="border-b border-dark/5 py-3">
                   <p className="m-0 font-bold text-dark">{invoice.description}</p>

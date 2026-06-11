@@ -1,31 +1,38 @@
-
 import { requireUser } from "@/lib/auth";
 import { query } from "@/lib/db";
-import { Student, columns } from "../columns";
-import { DataTable } from "./new-student-table";
+import { StudentTable, type StudentRow } from "./student-table";
 
-async function getStudents(): Promise<Student[]> {
-  // Fetch data from your API here.
-  const { rows } = await query<Student>(`
-  SELECT s.id::text, s.student_number, s.full_name, s.status, p.title AS program, c.name AS cohort
-  FROM portal_students s
-  LEFT JOIN portal_student_enrollments e ON e.student_id = s.id
-  LEFT JOIN portal_programs p ON p.id = e.program_id
-  LEFT JOIN portal_cohorts c ON c.id = e.cohort_id
-  ORDER BY s.created_at DESC
-`);
-return rows.map((row:any) => ({
-  ...row,
-  status: "pending",
-}));
-}
+export default async function StudentsPage() {
+  await requireUser("portal.admin");
 
-export default async function DemoPage() {
-  const data = await getStudents();
+  const students = await query<StudentRow>(`
+    SELECT
+      s.id::text,
+      s.student_number,
+      s.full_name,
+      s.email,
+      s.phone,
+      s.status,
+      p.title AS program,
+      c.name AS cohort
+    FROM portal_students s
+    LEFT JOIN portal_student_enrollments e ON e.student_id = s.id
+    LEFT JOIN portal_programs p ON p.id = e.program_id
+    LEFT JOIN portal_cohorts c ON c.id = e.cohort_id
+    ORDER BY s.created_at DESC
+  `);
 
   return (
-    <div className="container mx-auto py-10">
-      <DataTable columns={columns} data={data} />
+    <div className="space-y-6">
+      <div>
+        <p className="mb-1 text-[10px] font-black uppercase tracking-[0.2em] text-primary">Registry</p>
+        <h1 className="text-2xl font-bold md:text-3xl">Students</h1>
+        <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">
+          Open a student dashboard to manage registration, academics, fees, resources, and clearance.
+        </p>
+      </div>
+
+      <StudentTable data={students.rows} />
     </div>
   );
 }

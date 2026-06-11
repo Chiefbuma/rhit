@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { hashPassword, requireUser } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { Eye, Plus, Save, Trash2 } from "lucide-react";
+import { ModalForm } from "@/components/ui/modal-form";
 
 type Field = {
   name: string;
@@ -59,6 +60,33 @@ const configs: Record<string, CrudConfig> = {
       { key: "created_at", label: "Created" },
     ],
   },
+  acceptance: {
+    title: "Acceptance",
+    description: "Manage accepted applicants, offer letters, and acceptance status before student registration.",
+    table: "portal_admission_offers",
+    idColumn: "id",
+    listSql: "SELECT o.id, a.full_name AS applicant, a.email, p.title AS program, o.offer_number, o.offer_url, o.status, o.issued_at::date AS acceptance_date FROM portal_admission_offers o JOIN applications a ON a.id=o.application_id LEFT JOIN portal_programs p ON p.id=o.program_id ORDER BY o.issued_at DESC",
+    insertSql:
+      "INSERT INTO portal_admission_offers (application_id,program_id,offer_number,offer_url,status) VALUES (NULLIF($1,'')::bigint,NULLIF($2,'')::bigint,$3,$4,$5)",
+    updateSql: "UPDATE portal_admission_offers SET status = $2, accepted_at = CASE WHEN $2 = 'accepted' THEN NOW() ELSE accepted_at END WHERE id = $1",
+    deleteSql: "DELETE FROM portal_admission_offers WHERE id = $1",
+    badgeKey: "status",
+    fields: [
+      { name: "application_id", label: "Applicant", type: "select", required: true, optionsQuery: "SELECT id::text AS value, full_name || ' - ' || email AS label FROM applications ORDER BY created_at DESC" },
+      { name: "program_id", label: "Program", type: "select", required: true, optionsQuery: "SELECT id::text AS value, title AS label FROM portal_programs ORDER BY title" },
+      { name: "offer_number", label: "Offer Number", required: true },
+      { name: "offer_url", label: "Acceptance Letter URL" },
+      { name: "status", label: "Status", type: "select", required: true, optionsQuery: "SELECT value, label FROM (VALUES ('issued','Issued'),('accepted','Accepted'),('declined','Declined'),('expired','Expired')) AS x(value,label)" },
+    ],
+    columns: [
+      { key: "applicant", label: "Applicant" },
+      { key: "email", label: "Email" },
+      { key: "program", label: "Program" },
+      { key: "acceptance_date", label: "Acceptance Date" },
+      { key: "offer_url", label: "Letter URL" },
+      { key: "status", label: "Status" },
+    ],
+  },
   students: {
     title: "Students",
     description: "Register accepted applicants as students. Registration creates both the student record and student login credentials.",
@@ -89,6 +117,53 @@ const configs: Record<string, CrudConfig> = {
       { key: "full_name", label: "Name" },
       { key: "phone", label: "Phone" },
       { key: "next_of_kin_name", label: "Next of Kin" },
+      { key: "status", label: "Status" },
+    ],
+  },
+  "student-ids": {
+    title: "Student ID Management",
+    description: "Assign or track student ID numbers for onboarded and registered students.",
+    table: "portal_students",
+    idColumn: "id",
+    listSql: "SELECT s.id, s.full_name, s.student_number, p.title AS program, s.student_id_status AS status, s.student_id_number FROM portal_students s LEFT JOIN portal_student_enrollments e ON e.student_id=s.id AND e.status='active' LEFT JOIN portal_programs p ON p.id=e.program_id WHERE s.status <> 'archived' ORDER BY s.full_name",
+    insertSql: undefined,
+    updateSql: "UPDATE portal_students SET student_id_status = $2, updated_at = NOW() WHERE id = $1",
+    badgeKey: "status",
+    fields: [],
+    columns: [
+      { key: "full_name", label: "Student Name" },
+      { key: "student_number", label: "Registration Number" },
+      { key: "program", label: "Program" },
+      { key: "status", label: "ID Status" },
+      { key: "student_id_number", label: "ID Number" },
+    ],
+  },
+  "student-course-assignment": {
+    title: "Student Course Assignment",
+    description: "Assign students to program, cohort, class and linked modules using the configured academic relationships.",
+    table: "portal_student_enrollments",
+    idColumn: "id",
+    listSql: "SELECT e.id, s.full_name AS student, s.student_number, p.title AS program, c.name AS cohort, cl.name AS class, STRING_AGG(DISTINCT m.title, ', ' ORDER BY m.title) AS assigned_modules, e.status FROM portal_student_enrollments e JOIN portal_students s ON s.id=e.student_id JOIN portal_programs p ON p.id=e.program_id JOIN portal_cohorts c ON c.id=e.cohort_id LEFT JOIN portal_classes cl ON cl.id=e.class_id LEFT JOIN portal_program_modules pm ON pm.program_id=p.id LEFT JOIN portal_modules m ON m.id=pm.module_id GROUP BY e.id, s.full_name, s.student_number, p.title, c.name, cl.name, e.status ORDER BY s.full_name",
+    insertSql:
+      "INSERT INTO portal_student_enrollments (student_id,program_id,cohort_id,class_id,enrolled_on,status) VALUES (NULLIF($1,'')::bigint,NULLIF($2,'')::bigint,NULLIF($3,'')::bigint,NULLIF($4,'')::bigint,NULLIF($5,'')::date,$6)",
+    updateSql: "UPDATE portal_student_enrollments SET status = $2 WHERE id = $1",
+    deleteSql: "UPDATE portal_student_enrollments SET status = 'archived' WHERE id = $1",
+    badgeKey: "status",
+    fields: [
+      { name: "student_id", label: "Student", type: "select", required: true, optionsQuery: "SELECT id::text AS value, full_name || ' - ' || student_number AS label FROM portal_students WHERE status <> 'archived' ORDER BY full_name" },
+      { name: "program_id", label: "Program", type: "select", required: true, optionsQuery: "SELECT id::text AS value, title AS label FROM portal_programs WHERE status='active' ORDER BY title" },
+      { name: "cohort_id", label: "Cohort", type: "select", required: true, optionsQuery: "SELECT id::text AS value, name AS label FROM portal_cohorts WHERE status <> 'archived' ORDER BY starts_on DESC" },
+      { name: "class_id", label: "Class", type: "select", optionsQuery: "SELECT id::text AS value, name AS label FROM portal_classes WHERE status <> 'archived' ORDER BY name" },
+      { name: "enrolled_on", label: "Assigned On", type: "date", required: true },
+      { name: "status", label: "Status", type: "select", required: true, optionsQuery: "SELECT value, label FROM (VALUES ('active','Active'),('deferred','Deferred'),('completed','Completed'),('withdrawn','Withdrawn'),('archived','Archived')) AS x(value,label)" },
+    ],
+    columns: [
+      { key: "student", label: "Student Name" },
+      { key: "student_number", label: "Registration Number" },
+      { key: "program", label: "Program" },
+      { key: "cohort", label: "Cohort" },
+      { key: "class", label: "Class" },
+      { key: "assigned_modules", label: "Assigned Modules" },
       { key: "status", label: "Status" },
     ],
   },
@@ -181,25 +256,56 @@ const configs: Record<string, CrudConfig> = {
       { key: "status", label: "Status" },
     ],
   },
+  courses: {
+    title: "Courses",
+    description: "Create courses under programs before assigning modules, classes, exams, and results.",
+    table: "portal_courses",
+    idColumn: "id",
+    listSql: "SELECT c.id, c.code, c.title, p.title AS program, c.credits, c.status FROM portal_courses c JOIN portal_programs p ON p.id=c.program_id ORDER BY p.title, c.code",
+    insertSql:
+      "INSERT INTO portal_courses (program_id,code,title,credits,status) VALUES (NULLIF($1,'')::bigint,$2,$3,NULLIF($4,'')::int,$5)",
+    updateSql: "UPDATE portal_courses SET status = $2 WHERE id = $1",
+    deleteSql: "UPDATE portal_courses SET status = 'archived' WHERE id = $1",
+    badgeKey: "status",
+    fields: [
+      { name: "program_id", label: "Program", type: "select", required: true, optionsQuery: "SELECT id::text AS value, title AS label FROM portal_programs ORDER BY title" },
+      { name: "code", label: "Course Code", required: true },
+      { name: "title", label: "Course Name", required: true },
+      { name: "credits", label: "Credits", type: "number", required: true },
+      { name: "status", label: "Status", type: "select", required: true, optionsQuery: "SELECT value, label FROM (VALUES ('active','Active'),('paused','Paused'),('archived','Archived')) AS x(value,label)" },
+    ],
+    columns: [
+      { key: "code", label: "Course Code" },
+      { key: "title", label: "Course Name" },
+      { key: "program", label: "Program" },
+      { key: "credits", label: "Credits" },
+      { key: "status", label: "Status" },
+    ],
+  },
   modules: {
     title: "Modules",
-    description: "Manage academic modules and units.",
+    description: "Manage academic modules and assign them to courses and programs.",
     table: "portal_modules",
     idColumn: "id",
-    listSql: "SELECT id, code, title, credits, description FROM portal_modules ORDER BY code",
-    insertSql: "INSERT INTO portal_modules (code,title,description,credits) VALUES ($1,$2,$3,NULLIF($4,'')::int)",
+    listSql: "SELECT m.id, m.code, m.title, c.title AS course, p.title AS program, m.semester, m.credits FROM portal_modules m LEFT JOIN portal_courses c ON c.id=m.course_id LEFT JOIN portal_programs p ON p.id=m.program_id ORDER BY m.code",
+    insertSql: "INSERT INTO portal_modules (code,title,description,credits,course_id,program_id,semester) VALUES ($1,$2,$3,NULLIF($4,'')::int,NULLIF($5,'')::bigint,NULLIF($6,'')::bigint,$7)",
     deleteSql: "DELETE FROM portal_modules WHERE id = $1",
     fields: [
       { name: "code", label: "Code", required: true },
       { name: "title", label: "Title", required: true },
       { name: "description", label: "Description", type: "textarea" },
       { name: "credits", label: "Credits", type: "number", required: true },
+      { name: "course_id", label: "Course", type: "select", optionsQuery: "SELECT id::text AS value, code || ' - ' || title AS label FROM portal_courses ORDER BY code" },
+      { name: "program_id", label: "Program", type: "select", optionsQuery: "SELECT id::text AS value, title AS label FROM portal_programs ORDER BY title" },
+      { name: "semester", label: "Semester" },
     ],
     columns: [
       { key: "code", label: "Code" },
       { key: "title", label: "Title" },
+      { key: "course", label: "Course" },
+      { key: "program", label: "Program" },
+      { key: "semester", label: "Semester" },
       { key: "credits", label: "Credits" },
-      { key: "description", label: "Description" },
     ],
   },
   cohorts: {
@@ -231,12 +337,12 @@ const configs: Record<string, CrudConfig> = {
   },
   classes: {
     title: "Classes",
-    description: "Assign cohorts to classes, trainers, and rooms.",
+    description: "Assign cohorts to classes, lecturers, rooms, schedules, and capacity.",
     table: "portal_classes",
     idColumn: "id",
-    listSql: "SELECT cl.id, cl.name, c.name AS cohort, u.full_name AS trainer, cl.room, cl.status FROM portal_classes cl JOIN portal_cohorts c ON c.id=cl.cohort_id LEFT JOIN portal_users u ON u.id=cl.trainer_user_id ORDER BY cl.id DESC",
+    listSql: "SELECT cl.id, cl.name, c.name AS cohort, p.title AS program, COALESCE(l.full_name, u.full_name) AS trainer, cl.room, cl.schedule, cl.capacity, cl.status FROM portal_classes cl JOIN portal_cohorts c ON c.id=cl.cohort_id JOIN portal_programs p ON p.id=c.program_id LEFT JOIN portal_users u ON u.id=cl.trainer_user_id LEFT JOIN portal_lecturers l ON l.email=u.email ORDER BY cl.id DESC",
     insertSql:
-      "INSERT INTO portal_classes (cohort_id,name,trainer_user_id,room,status) VALUES (NULLIF($1,'')::bigint,$2,NULLIF($3,'')::uuid,$4,$5)",
+      "INSERT INTO portal_classes (cohort_id,name,trainer_user_id,room,schedule,capacity,status) VALUES (NULLIF($1,'')::bigint,$2,NULLIF($3,'')::uuid,$4,$5,NULLIF($6,'')::int,$7)",
     updateSql: "UPDATE portal_classes SET status = $2 WHERE id = $1",
     deleteSql: "UPDATE portal_classes SET status = 'archived' WHERE id = $1",
     badgeKey: "status",
@@ -245,19 +351,77 @@ const configs: Record<string, CrudConfig> = {
       { name: "name", label: "Class Name", required: true },
       { name: "trainer_user_id", label: "Trainer", type: "select", optionsQuery: "SELECT id::text AS value, full_name AS label FROM portal_users ORDER BY full_name" },
       { name: "room", label: "Room" },
+      { name: "schedule", label: "Schedule" },
+      { name: "capacity", label: "Capacity", type: "number" },
       { name: "status", label: "Status", type: "select", required: true, optionsQuery: "SELECT value, label FROM (VALUES ('active','Active'),('completed','Completed'),('archived','Archived')) AS x(value,label)" },
     ],
     columns: [
       { key: "name", label: "Class" },
       { key: "cohort", label: "Cohort" },
+      { key: "program", label: "Program" },
       { key: "trainer", label: "Trainer" },
       { key: "room", label: "Room" },
+      { key: "schedule", label: "Schedule" },
+      { key: "capacity", label: "Capacity" },
+      { key: "status", label: "Status" },
+    ],
+  },
+  lecturers: {
+    title: "Lecturers",
+    description: "Manage lecturer profiles and specialization before assigning lecturers to modules and classes.",
+    table: "portal_lecturers",
+    idColumn: "id",
+    listSql: "SELECT id, employee_id, full_name, specialization, email, phone, status FROM portal_lecturers ORDER BY full_name",
+    insertSql:
+      "INSERT INTO portal_lecturers (employee_id,full_name,specialization,email,phone,status) VALUES ($1,$2,$3,$4,$5,$6)",
+    updateSql: "UPDATE portal_lecturers SET status = $2 WHERE id = $1",
+    deleteSql: "UPDATE portal_lecturers SET status = 'archived' WHERE id = $1",
+    badgeKey: "status",
+    fields: [
+      { name: "employee_id", label: "Employee ID", required: true },
+      { name: "full_name", label: "Lecturer Name", required: true },
+      { name: "specialization", label: "Specialization" },
+      { name: "email", label: "Email", required: true },
+      { name: "phone", label: "Phone" },
+      { name: "status", label: "Status", type: "select", required: true, optionsQuery: "SELECT value, label FROM (VALUES ('active','Active'),('inactive','Inactive'),('archived','Archived')) AS x(value,label)" },
+    ],
+    columns: [
+      { key: "employee_id", label: "Employee ID" },
+      { key: "full_name", label: "Lecturer Name" },
+      { key: "specialization", label: "Specialization" },
+      { key: "email", label: "Email" },
+      { key: "status", label: "Status" },
+    ],
+  },
+  "module-lecturers": {
+    title: "Module Lecturers",
+    description: "Assign a lecturer to a module for a specific class and academic year.",
+    table: "portal_module_lecturers",
+    idColumn: "id",
+    listSql: "SELECT ml.id, m.title AS module, l.full_name AS lecturer, cl.name AS class, ml.academic_year, ml.status FROM portal_module_lecturers ml JOIN portal_modules m ON m.id=ml.module_id JOIN portal_lecturers l ON l.id=ml.lecturer_id LEFT JOIN portal_classes cl ON cl.id=ml.class_id ORDER BY ml.academic_year DESC, m.title",
+    insertSql:
+      "INSERT INTO portal_module_lecturers (module_id,lecturer_id,class_id,academic_year,status) VALUES (NULLIF($1,'')::bigint,NULLIF($2,'')::bigint,NULLIF($3,'')::bigint,$4,$5)",
+    updateSql: "UPDATE portal_module_lecturers SET status = $2 WHERE id = $1",
+    deleteSql: "DELETE FROM portal_module_lecturers WHERE id = $1",
+    badgeKey: "status",
+    fields: [
+      { name: "module_id", label: "Module", type: "select", required: true, optionsQuery: "SELECT id::text AS value, code || ' - ' || title AS label FROM portal_modules ORDER BY code" },
+      { name: "lecturer_id", label: "Lecturer", type: "select", required: true, optionsQuery: "SELECT id::text AS value, full_name AS label FROM portal_lecturers ORDER BY full_name" },
+      { name: "class_id", label: "Class", type: "select", optionsQuery: "SELECT id::text AS value, name AS label FROM portal_classes ORDER BY name" },
+      { name: "academic_year", label: "Academic Year", required: true },
+      { name: "status", label: "Status", type: "select", required: true, optionsQuery: "SELECT value, label FROM (VALUES ('active','Active'),('completed','Completed'),('archived','Archived')) AS x(value,label)" },
+    ],
+    columns: [
+      { key: "module", label: "Module" },
+      { key: "lecturer", label: "Lecturer" },
+      { key: "class", label: "Class" },
+      { key: "academic_year", label: "Academic Year" },
       { key: "status", label: "Status" },
     ],
   },
   resources: {
-    title: "Resources",
-    description: "Create learning resources for assignment to programs, cohorts, classes or students.",
+    title: "Learning Materials",
+    description: "Create learning materials for assignment to modules, programs, cohorts, classes or students.",
     table: "portal_learning_resources",
     idColumn: "id",
     listSql: "SELECT id, title, resource_type, url, description FROM portal_learning_resources ORDER BY created_at DESC",
@@ -274,6 +438,85 @@ const configs: Record<string, CrudConfig> = {
       { key: "resource_type", label: "Type" },
       { key: "url", label: "URL" },
       { key: "description", label: "Description" },
+    ],
+  },
+  "learning-materials": {
+    title: "Learning Materials",
+    description: "Upload and manage learning materials for students and classes.",
+    table: "portal_learning_resources",
+    idColumn: "id",
+    listSql: "SELECT r.id, r.title, r.resource_type, u.full_name AS uploaded_by, r.created_at::date AS upload_date, r.url, r.description FROM portal_learning_resources r LEFT JOIN portal_users u ON u.id=r.created_by ORDER BY r.created_at DESC",
+    insertSql: "INSERT INTO portal_learning_resources (title,resource_type,url,description) VALUES ($1,$2,$3,$4)",
+    deleteSql: "DELETE FROM portal_learning_resources WHERE id = $1",
+    fields: [
+      { name: "title", label: "Title", required: true },
+      { name: "resource_type", label: "Material Type", type: "select", required: true, optionsQuery: "SELECT value, label FROM (VALUES ('pdf','PDF'),('link','Link'),('video','Video'),('policy','Policy'),('announcement','Announcement')) AS x(value,label)" },
+      { name: "url", label: "File URL" },
+      { name: "description", label: "Description", type: "textarea" },
+    ],
+    columns: [
+      { key: "title", label: "Title" },
+      { key: "resource_type", label: "Material Type" },
+      { key: "uploaded_by", label: "Uploaded By" },
+      { key: "upload_date", label: "Upload Date" },
+      { key: "url", label: "File URL" },
+    ],
+  },
+  rooms: {
+    title: "Rooms",
+    description: "Manage classrooms, labs, hostels, facilities, and availability.",
+    table: "portal_rooms",
+    idColumn: "id",
+    listSql: "SELECT id, room_number, room_type, capacity, status, facilities, hostel_fee_kes FROM portal_rooms ORDER BY room_number",
+    insertSql:
+      "INSERT INTO portal_rooms (room_number,room_type,capacity,status,facilities,hostel_fee_kes) VALUES ($1,$2,NULLIF($3,'')::int,$4,$5,NULLIF($6,'')::int)",
+    updateSql: "UPDATE portal_rooms SET status = $2 WHERE id = $1",
+    deleteSql: "UPDATE portal_rooms SET status = 'archived' WHERE id = $1",
+    badgeKey: "status",
+    fields: [
+      { name: "room_number", label: "Room Number", required: true },
+      { name: "room_type", label: "Type", type: "select", required: true, optionsQuery: "SELECT value, label FROM (VALUES ('classroom','Classroom'),('lab','Lab'),('hostel','Hostel'),('clinical','Clinical')) AS x(value,label)" },
+      { name: "capacity", label: "Capacity", type: "number", required: true },
+      { name: "status", label: "Status", type: "select", required: true, optionsQuery: "SELECT value, label FROM (VALUES ('available','Available'),('occupied','Occupied'),('maintenance','Maintenance'),('archived','Archived')) AS x(value,label)" },
+      { name: "facilities", label: "Facilities", type: "textarea" },
+      { name: "hostel_fee_kes", label: "Hostel Fee KES", type: "number" },
+    ],
+    columns: [
+      { key: "room_number", label: "Room Number" },
+      { key: "room_type", label: "Type" },
+      { key: "capacity", label: "Capacity" },
+      { key: "status", label: "Status" },
+      { key: "facilities", label: "Facilities" },
+      { key: "hostel_fee_kes", label: "Hostel Fee" },
+    ],
+  },
+  "medical-attachments": {
+    title: "Medical Facility Attachments",
+    description: "Assign students to medical facilities for practical rotations and ward rounds.",
+    table: "portal_attachment_placements",
+    idColumn: "id",
+    listSql: "SELECT ap.id, s.full_name AS student, s.student_number, site.name AS facility_name, ap.starts_on, ap.ends_on, ap.supervisor_name AS supervisor, ap.status FROM portal_attachment_placements ap JOIN portal_students s ON s.id=ap.student_id JOIN portal_attachment_sites site ON site.id=ap.site_id ORDER BY ap.starts_on DESC",
+    insertSql:
+      "INSERT INTO portal_attachment_placements (student_id,site_id,supervisor_name,starts_on,ends_on,status) VALUES (NULLIF($1,'')::bigint,NULLIF($2,'')::bigint,$3,NULLIF($4,'')::date,NULLIF($5,'')::date,$6)",
+    updateSql: "UPDATE portal_attachment_placements SET status = $2 WHERE id = $1",
+    deleteSql: "DELETE FROM portal_attachment_placements WHERE id = $1",
+    badgeKey: "status",
+    fields: [
+      { name: "student_id", label: "Student", type: "select", required: true, optionsQuery: "SELECT id::text AS value, full_name || ' - ' || student_number AS label FROM portal_students ORDER BY full_name" },
+      { name: "site_id", label: "Facility", type: "select", required: true, optionsQuery: "SELECT id::text AS value, name AS label FROM portal_attachment_sites ORDER BY name" },
+      { name: "supervisor_name", label: "Supervisor" },
+      { name: "starts_on", label: "Start Date", type: "date", required: true },
+      { name: "ends_on", label: "End Date", type: "date" },
+      { name: "status", label: "Status", type: "select", required: true, optionsQuery: "SELECT value, label FROM (VALUES ('assigned','Assigned'),('active','Active'),('completed','Completed'),('cancelled','Cancelled')) AS x(value,label)" },
+    ],
+    columns: [
+      { key: "student", label: "Student Name" },
+      { key: "student_number", label: "Registration Number" },
+      { key: "facility_name", label: "Facility Name" },
+      { key: "starts_on", label: "Start" },
+      { key: "ends_on", label: "End" },
+      { key: "supervisor", label: "Supervisor" },
+      { key: "status", label: "Status" },
     ],
   },
   timetable: {
@@ -359,6 +602,32 @@ const configs: Record<string, CrudConfig> = {
       { key: "updated_at", label: "Updated" },
     ],
   },
+  "course-fees": {
+    title: "Course Fees",
+    description: "Set fee structures by program and cohort so invoices can be generated from institutional fee rules.",
+    table: "portal_fee_structures",
+    idColumn: "id",
+    listSql: "SELECT fs.id, p.title AS program, c.name AS cohort, fs.name, fs.total_amount_kes, fs.status FROM portal_fee_structures fs JOIN portal_programs p ON p.id=fs.program_id LEFT JOIN portal_cohorts c ON c.id=fs.cohort_id ORDER BY p.title, fs.name",
+    insertSql:
+      "INSERT INTO portal_fee_structures (program_id,cohort_id,name,total_amount_kes,status) VALUES (NULLIF($1,'')::bigint,NULLIF($2,'')::bigint,$3,NULLIF($4,'')::int,$5)",
+    updateSql: "UPDATE portal_fee_structures SET status = $2 WHERE id = $1",
+    deleteSql: "UPDATE portal_fee_structures SET status = 'archived' WHERE id = $1",
+    badgeKey: "status",
+    fields: [
+      { name: "program_id", label: "Program", type: "select", required: true, optionsQuery: "SELECT id::text AS value, title AS label FROM portal_programs ORDER BY title" },
+      { name: "cohort_id", label: "Cohort", type: "select", optionsQuery: "SELECT id::text AS value, name AS label FROM portal_cohorts ORDER BY starts_on DESC" },
+      { name: "name", label: "Fee Name", required: true },
+      { name: "total_amount_kes", label: "Fee Amount", type: "number", required: true },
+      { name: "status", label: "Status", type: "select", required: true, optionsQuery: "SELECT value, label FROM (VALUES ('active','Active'),('paused','Paused'),('archived','Archived')) AS x(value,label)" },
+    ],
+    columns: [
+      { key: "program", label: "Program" },
+      { key: "cohort", label: "Cohort" },
+      { key: "name", label: "Fee Name" },
+      { key: "total_amount_kes", label: "Fee Amount" },
+      { key: "status", label: "Status" },
+    ],
+  },
   fees: {
     title: "Fees and Invoices",
     description: "Create invoices and track balances.",
@@ -384,6 +653,32 @@ const configs: Record<string, CrudConfig> = {
       { key: "amount_kes", label: "Amount" },
       { key: "status", label: "Status" },
       { key: "due_on", label: "Due" },
+    ],
+  },
+  payments: {
+    title: "Payments",
+    description: "Record payments, receipts, and manual references against student invoices.",
+    table: "portal_payments",
+    idColumn: "id",
+    listSql: "SELECT pay.id, s.full_name AS student, i.invoice_number, pay.receipt_number, pay.amount_kes, pay.method, pay.reference, pay.paid_at::date AS paid_at FROM portal_payments pay JOIN portal_students s ON s.id=pay.student_id LEFT JOIN portal_invoices i ON i.id=pay.invoice_id ORDER BY pay.paid_at DESC",
+    insertSql:
+      "INSERT INTO portal_payments (student_id,invoice_id,receipt_number,amount_kes,method,reference) VALUES (NULLIF($1,'')::bigint,NULLIF($2,'')::bigint,$3,NULLIF($4,'')::int,$5,$6)",
+    deleteSql: "DELETE FROM portal_payments WHERE id = $1",
+    fields: [
+      { name: "student_id", label: "Student", type: "select", required: true, optionsQuery: "SELECT id::text AS value, full_name || ' - ' || student_number AS label FROM portal_students ORDER BY full_name" },
+      { name: "invoice_id", label: "Invoice", type: "select", optionsQuery: "SELECT id::text AS value, invoice_number AS label FROM portal_invoices ORDER BY created_at DESC" },
+      { name: "receipt_number", label: "Receipt Number", required: true },
+      { name: "amount_kes", label: "Amount Paid", type: "number", required: true },
+      { name: "method", label: "Method", type: "select", required: true, optionsQuery: "SELECT value, label FROM (VALUES ('manual','Manual'),('mpesa','M-Pesa'),('bank','Bank'),('cash','Cash')) AS x(value,label)" },
+      { name: "reference", label: "Reference" },
+    ],
+    columns: [
+      { key: "student", label: "Student" },
+      { key: "invoice_number", label: "Invoice" },
+      { key: "receipt_number", label: "Receipt" },
+      { key: "amount_kes", label: "Amount Paid" },
+      { key: "method", label: "Method" },
+      { key: "paid_at", label: "Payment Date" },
     ],
   },
   requests: {
@@ -445,6 +740,32 @@ const configs: Record<string, CrudConfig> = {
       { key: "name", label: "Batch" },
       { key: "ceremony_date", label: "Ceremony" },
       { key: "status", label: "Status" },
+    ],
+  },
+  "graduation-list": {
+    title: "Graduation List",
+    description: "Track graduation candidates, clearance completion, and graduation approval status.",
+    table: "portal_graduation_candidates",
+    idColumn: "id",
+    listSql: "SELECT gc.batch_id::text || '-' || gc.student_id::text AS id, s.full_name AS student, s.student_number, p.title AS program, gc.clearance_completed, gc.status, gb.ceremony_date AS graduation_date FROM portal_graduation_candidates gc JOIN portal_students s ON s.id=gc.student_id JOIN portal_graduation_batches gb ON gb.id=gc.batch_id LEFT JOIN portal_student_enrollments e ON e.student_id=s.id AND e.status='active' LEFT JOIN portal_programs p ON p.id=e.program_id ORDER BY gb.ceremony_date DESC NULLS LAST, s.full_name",
+    insertSql:
+      "INSERT INTO portal_graduation_candidates (batch_id,student_id,status,clearance_completed) VALUES (NULLIF($1,'')::bigint,NULLIF($2,'')::bigint,$3,CASE WHEN $4='true' THEN true ELSE false END)",
+    updateSql: "UPDATE portal_graduation_candidates SET status = $2 WHERE (batch_id::text || '-' || student_id::text) = $1",
+    deleteSql: "DELETE FROM portal_graduation_candidates WHERE (batch_id::text || '-' || student_id::text) = $1",
+    badgeKey: "status",
+    fields: [
+      { name: "batch_id", label: "Graduation Batch", type: "select", required: true, optionsQuery: "SELECT id::text AS value, name AS label FROM portal_graduation_batches ORDER BY ceremony_date DESC NULLS LAST" },
+      { name: "student_id", label: "Student", type: "select", required: true, optionsQuery: "SELECT id::text AS value, full_name || ' - ' || student_number AS label FROM portal_students ORDER BY full_name" },
+      { name: "status", label: "Status", type: "select", required: true, optionsQuery: "SELECT value, label FROM (VALUES ('pending','Pending'),('approved','Approved'),('passed','Passed'),('failed','Failed'),('published','Published')) AS x(value,label)" },
+      { name: "clearance_completed", label: "Clearance Completed", type: "select", required: true, optionsQuery: "SELECT value, label FROM (VALUES ('false','No'),('true','Yes')) AS x(value,label)" },
+    ],
+    columns: [
+      { key: "student", label: "Student Name" },
+      { key: "student_number", label: "Registration Number" },
+      { key: "program", label: "Program" },
+      { key: "clearance_completed", label: "Clearance" },
+      { key: "status", label: "Overall Status" },
+      { key: "graduation_date", label: "Graduation Date" },
     ],
   },
   users: {
@@ -610,6 +931,26 @@ function valueText(value: unknown) {
   return String(value);
 }
 
+function renderField(field: Field, options: Record<string, { value: string; label: string }[]>) {
+  return (
+    <label key={field.name} className="grid gap-2 sm:grid-cols-[180px_1fr] sm:items-start">
+      <span className="pt-2 text-[10px] font-black uppercase tracking-widest text-dark/50">{field.label}</span>
+      {field.type === "textarea" ? (
+        <textarea name={field.name} required={field.required} placeholder={field.placeholder} rows={3} className="portal-field" />
+      ) : field.type === "select" ? (
+        <select name={field.name} required={field.required} className="portal-field">
+          <option value="">Select {field.label}</option>
+          {(options[field.name] ?? []).map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+      ) : (
+        <input name={field.name} required={field.required} type={field.type ?? "text"} placeholder={field.placeholder} className="portal-field" />
+      )}
+    </label>
+  );
+}
+
 export default async function AdminCrudPage({ params }: { params: Promise<{ module: string }> }) {
   await requireUser("portal.admin");
   const { module } = await params;
@@ -633,36 +974,27 @@ export default async function AdminCrudPage({ params }: { params: Promise<{ modu
       </div>
 
       {config.insertSql && config.fields.length > 0 ? (
-        <section className="portal-card p-5">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary"><Plus size={18} /></div>
-            <h2 className="m-0 text-base font-bold text-dark">Create {config.title.slice(0, -1) || config.title}</h2>
-          </div>
-          <form action={createAction} className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {config.fields.map((field) => (
-              <label key={field.name} className={field.type === "textarea" ? "md:col-span-2 xl:col-span-3" : ""}>
-                <span className="mb-2 block text-[10px] font-black uppercase tracking-widest text-dark/50">{field.label}</span>
-                {field.type === "textarea" ? (
-                  <textarea name={field.name} required={field.required} placeholder={field.placeholder} rows={3} className="portal-field" />
-                ) : field.type === "select" ? (
-                  <select name={field.name} required={field.required} className="portal-field">
-                    <option value="">Select {field.label}</option>
-                    {(options[field.name] ?? []).map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <input name={field.name} required={field.required} type={field.type ?? "text"} placeholder={field.placeholder} className="portal-field" />
-                )}
-              </label>
-            ))}
-            <div className="flex items-end">
-              <button className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-xs font-black uppercase tracking-widest text-white hover:bg-dark">
-                <Save size={16} /> Save
-              </button>
-            </div>
-          </form>
-        </section>
+        <div className="flex justify-end">
+          <ModalForm
+            title={`Create ${config.title.slice(0, -1) || config.title}`}
+            description={config.description}
+            widthClassName="max-w-3xl"
+            trigger={
+              <span className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-xs font-black uppercase tracking-widest text-white hover:bg-dark">
+                <Plus size={16} /> Create
+              </span>
+            }
+          >
+            <form action={createAction} className="space-y-4">
+              {config.fields.map((field) => renderField(field, options))}
+              <div className="flex justify-end border-t border-[hsl(var(--border))] pt-4">
+                <button className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-xs font-black uppercase tracking-widest text-white hover:bg-dark">
+                  <Save size={16} /> Save
+                </button>
+              </div>
+            </form>
+          </ModalForm>
+        </div>
       ) : null}
 
       <section className="portal-table-wrap">
@@ -701,24 +1033,41 @@ export default async function AdminCrudPage({ params }: { params: Promise<{ modu
                         </a>
                       ) : null}
                       {config.updateSql ? (
-                        <form action={updateAction} className="flex gap-2">
-                          <input type="hidden" name="id" value={String(row[config.idColumn])} />
-                          <select name="status" defaultValue={String(row.status ?? "")} className="border border-dark/10 bg-white px-2 py-2 text-xs">
-                            <option value="active">Active</option>
-                            <option value="new">New</option>
-                            <option value="under_review">Under Review</option>
-                            <option value="accepted">Accepted</option>
-                            <option value="rejected">Rejected</option>
-                            <option value="submitted">Submitted</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="approved">Approved</option>
-                            <option value="paid">Paid</option>
-                            <option value="partially_paid">Partially Paid</option>
-                            <option value="completed">Completed</option>
-                            <option value="archived">Archived</option>
-                          </select>
-                          <button className="bg-dark px-3 py-2 text-xs font-black uppercase tracking-widest text-white hover:bg-primary">Update</button>
-                        </form>
+                        <ModalForm
+                          title={`Edit ${config.title}`}
+                          description={`Update status for ${valueText(row[config.columns[0]?.key])}.`}
+                          trigger={
+                            <span className="inline-flex h-8 items-center rounded-md bg-dark px-3 text-xs font-black uppercase tracking-widest text-white hover:bg-primary">
+                              Edit
+                            </span>
+                          }
+                        >
+                          <form action={updateAction} className="space-y-4">
+                            <input type="hidden" name="id" value={String(row[config.idColumn])} />
+                            <label className="grid gap-2 sm:grid-cols-[160px_1fr] sm:items-center">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-dark/50">Status</span>
+                              <select name="status" defaultValue={String(row.status ?? "")} className="portal-field">
+                                <option value="active">Active</option>
+                                <option value="new">New</option>
+                                <option value="under_review">Under Review</option>
+                                <option value="accepted">Accepted</option>
+                                <option value="rejected">Rejected</option>
+                                <option value="submitted">Submitted</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="approved">Approved</option>
+                                <option value="paid">Paid</option>
+                                <option value="partially_paid">Partially Paid</option>
+                                <option value="completed">Completed</option>
+                                <option value="archived">Archived</option>
+                              </select>
+                            </label>
+                            <div className="flex justify-end border-t border-[hsl(var(--border))] pt-4">
+                              <button className="rounded-md bg-primary px-4 py-2 text-xs font-black uppercase tracking-widest text-white hover:bg-dark">
+                                Update
+                              </button>
+                            </div>
+                          </form>
+                        </ModalForm>
                       ) : null}
                       {config.deleteSql ? (
                         <form action={deleteAction}>

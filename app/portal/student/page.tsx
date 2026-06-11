@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import type { ReactNode } from "react";
+import { ModalForm } from "@/components/ui/modal-form";
 
 // Retaining the server action to create a student request.
 async function createStudentRequest(formData: FormData) {
@@ -177,28 +178,34 @@ export default async function StudentPortalPage() {
       </DashboardSection>
 
       <DashboardSection title="Submit an Enquiry">
-        <form action={createStudentRequest} className="space-y-4 rounded-lg bg-gray-50 p-4">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <label htmlFor="subject" className="mb-1 block font-semibold">Subject</label>
-              <input type="text" name="subject" id="subject" className="w-full rounded border-gray-300 p-2" required />
-            </div>
-            <div>
-              <label htmlFor="category_id" className="mb-1 block font-semibold">Category</label>
-              <select name="category_id" id="category_id" className="w-full rounded border-gray-300 p-2">
+        <ModalForm
+          title="Submit an Enquiry"
+          description="Send a request to the relevant RHTI office."
+          trigger={<span className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-xs font-black uppercase tracking-widest text-white hover:bg-dark">New Enquiry</span>}
+        >
+          <form action={createStudentRequest} className="space-y-4">
+            <label htmlFor="subject" className="grid gap-2 sm:grid-cols-[140px_1fr] sm:items-center">
+              <span className="text-[10px] font-black uppercase tracking-widest text-dark/50">Subject</span>
+              <input type="text" name="subject" id="subject" className="portal-field" required />
+            </label>
+            <label htmlFor="category_id" className="grid gap-2 sm:grid-cols-[140px_1fr] sm:items-center">
+              <span className="text-[10px] font-black uppercase tracking-widest text-dark/50">Category</span>
+              <select name="category_id" id="category_id" className="portal-field">
                 <option value="">General Enquiry</option>
                 {data.categories.map((cat) => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
               </select>
+            </label>
+            <label htmlFor="details" className="grid gap-2 sm:grid-cols-[140px_1fr] sm:items-start">
+              <span className="pt-2 text-[10px] font-black uppercase tracking-widest text-dark/50">Details</span>
+              <textarea name="details" id="details" rows={4} className="portal-field" required></textarea>
+            </label>
+            <div className="flex justify-end border-t border-[hsl(var(--border))] pt-4">
+              <button type="submit" className="rounded-md bg-primary px-4 py-2 text-xs font-black uppercase tracking-widest text-white hover:bg-dark">
+                Submit Enquiry
+              </button>
             </div>
-          </div>
-          <div>
-            <label htmlFor="details" className="mb-1 block font-semibold">Details</label>
-            <textarea name="details" id="details" rows={4} className="w-full rounded border-gray-300 p-2" required></textarea>
-          </div>
-          <button type="submit" className="rounded bg-sky-700 px-4 py-2 font-bold text-white hover:bg-sky-800">
-            Submit Enquiry
-          </button>
-        </form>
+          </form>
+        </ModalForm>
       </DashboardSection>
 
       <DashboardSection title="Recent Enquiries">

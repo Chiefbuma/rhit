@@ -5,16 +5,25 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
     ports:
       - "5435:5432"
     volumes:
-      - ./docker/postgres/init:/docker-entrypoint-initdb.d
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
       - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
   app:
     build:
       context: .
       dockerfile: Dockerfile.dev
     restart: always
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "3010:3000"
     volumes:
