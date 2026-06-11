@@ -34,80 +34,54 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { ModuleFormModal } from "./module-form-modal";
-
+import { CohortFormModal } from "./cohort-form-modal";
 
 // This type is used to define the shape of our data.
 // You can use a Zod schema here if you want.
-export type Module = {
+export type Cohort = {
   id: string;
-  moduleCode: string;
-  moduleName: string;
-  course: string;
+  cohortName: string;
   program: string;
-  semester: number;
-  credits: number;
+  startDate: string;
+  endDate: string;
+  academicYear: string;
 };
 
 // Placeholder data
-const data: Module[] = [
+const data: Cohort[] = [
     {
-        id: "m5",
-        moduleCode: "CS501",
-        moduleName: "Advanced Algorithms",
-        course: "Computer Science",
+        id: "ch1",
+        cohortName: "CNA-01",
         program: "BSc. Computer Science",
-        semester: 2,
-        credits: 4,
+        startDate: "2024-09-01",
+        endDate: "2025-05-31",
+        academicYear: "2024-2025",
       },
       {
-        id: "m6",
-        moduleCode: "EE602",
-        moduleName: "Digital Signal Processing",
-        course: "Electrical Engineering",
-        program: "BSc. Electrical Engineering",
-        semester: 1,
-        credits: 3,
+        id: "ch2",
+        cohortName: "HRIT-01",
+        program: "BSc. Information Technology",
+        startDate: "2024-09-01",
+        endDate: "2025-05-31",
+        academicYear: "2024-2025",
       },
       {
-        id: "m7",
-        moduleCode: "ME703",
-        moduleName: "Thermodynamics II",
-        course: "Mechanical Engineering",
-        program: "BSc. Mechanical Engineering",
-        semester: 2,
-        credits: 4,
+        id: "ch3",
+        cohortName: "CDA-01",
+        program: "BSc. Data Science",
+        startDate: "2024-09-01",
+        endDate: "2025-05-31",
+        academicYear: "2024-2025",
       },
 ];
 
-export const columns: ColumnDef<Module>[] = [
+export const columns: ColumnDef<Cohort>[] = [
   {
-    accessorKey: "moduleCode",
-    header: ({ column }) => {
-        return (
-          <Button
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Module Code
-            <ArrowUpDown className="ml-2 h-4 w-4" />
-          </Button>
-        );
-      },
-    cell: ({ row }) => <div className="lowercase">{row.getValue("moduleCode")}</div>,
-  },
-  {
-    accessorKey: "moduleName",
-    header: "Module Name",
+    accessorKey: "cohortName",
+    header: "Cohort Name",
     cell: ({ row }) => (
-      <div className="capitalize">{row.getValue("moduleName")}</div>
+      <div className="capitalize">{row.getValue("cohortName")}</div>
     ),
-  },
-  {
-    accessorKey: "course",
-    header: "Course",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("course")}</div>,
   },
   {
     accessorKey: "program",
@@ -115,20 +89,25 @@ export const columns: ColumnDef<Module>[] = [
     cell: ({ row }) => <div className="capitalize">{row.getValue("program")}</div>,
   },
   {
-    accessorKey: "semester",
-    header: "Semester",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("semester")}</div>,
+    accessorKey: "startDate",
+    header: "Start Date",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("startDate")}</div>,
   },
   {
-    accessorKey: "credits",
-    header: "Credits",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("credits")}</div>,
+    accessorKey: "endDate",
+    header: "End Date",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("endDate")}</div>,
+  },
+  {
+    accessorKey: "academicYear",
+    header: "Academic Year",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("academicYear")}</div>,
   },
   {
     id: "actions",
     enableHiding: false,
     cell: ({ row }) => {
-      const module = row.original;
+      const cohort = row.original;
 
       return (
         <DropdownMenu>
@@ -141,14 +120,14 @@ export const columns: ColumnDef<Module>[] = [
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
             <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(module.id)}
+              onClick={() => navigator.clipboard.writeText(cohort.id)}
             >
-              Copy module ID
+              Copy cohort ID
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>View Module</DropdownMenuItem>
-            <DropdownMenuItem>Edit Module</DropdownMenuItem>
-            <DropdownMenuItem>Delete Module</DropdownMenuItem>
+            <DropdownMenuItem>View Cohort</DropdownMenuItem>
+            <DropdownMenuItem>Edit Cohort</DropdownMenuItem>
+            <DropdownMenuItem>Delete Cohort</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       );
@@ -156,7 +135,7 @@ export const columns: ColumnDef<Module>[] = [
   },
 ];
 
-export function ModulesTable() {
+export function CohortsTable() {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
@@ -188,15 +167,15 @@ export function ModulesTable() {
     <div className="w-full">
       <div className="flex items-center justify-between py-4">
         <Input
-          placeholder="Filter modules..."
-          value={(table.getColumn("moduleName")?.getFilterValue() as string) ?? ""}
+          placeholder="Filter cohorts..."
+          value={(table.getColumn("cohortName")?.getFilterValue() as string) ?? ""}
           onChange={(event) =>
-            table.getColumn("moduleName")?.setFilterValue(event.target.value)
+            table.getColumn("cohortName")?.setFilterValue(event.target.value)
           }
           className="max-w-sm"
         />
         <div className="flex space-x-2">
-            <ModuleFormModal />
+            <CohortFormModal />
             <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="ml-auto">
@@ -293,7 +272,7 @@ export function ModulesTable() {
             variant="outline"
             size="sm"
             onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
+            disabled={!table.getCanNextPage()
           >
             Next
           </Button>

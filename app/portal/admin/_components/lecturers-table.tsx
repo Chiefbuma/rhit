@@ -34,101 +34,82 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { ModuleFormModal } from "./module-form-modal";
-
+import { LecturerFormModal } from "./lecturer-form-modal";
 
 // This type is used to define the shape of our data.
 // You can use a Zod schema here if you want.
-export type Module = {
+export type Lecturer = {
   id: string;
-  moduleCode: string;
-  moduleName: string;
-  course: string;
-  program: string;
-  semester: number;
-  credits: number;
+  lecturerName: string;
+  employeeId: string;
+  specialization: string;
+  email: string;
+  assignedModules: string[];
 };
 
 // Placeholder data
-const data: Module[] = [
+const data: Lecturer[] = [
     {
-        id: "m5",
-        moduleCode: "CS501",
-        moduleName: "Advanced Algorithms",
-        course: "Computer Science",
-        program: "BSc. Computer Science",
-        semester: 2,
-        credits: 4,
-      },
-      {
-        id: "m6",
-        moduleCode: "EE602",
-        moduleName: "Digital Signal Processing",
-        course: "Electrical Engineering",
-        program: "BSc. Electrical Engineering",
-        semester: 1,
-        credits: 3,
-      },
-      {
-        id: "m7",
-        moduleCode: "ME703",
-        moduleName: "Thermodynamics II",
-        course: "Mechanical Engineering",
-        program: "BSc. Mechanical Engineering",
-        semester: 2,
-        credits: 4,
-      },
+        id: "l1",
+        lecturerName: "Dr. Smith",
+        employeeId: "EMP101",
+        specialization: "Computer Science",
+        email: "smith@example.com",
+        assignedModules: ["CS101", "CS102"],
+        },
+        {
+        id: "l2",
+        lecturerName: "Dr. Jones",
+        employeeId: "EMP102",
+        specialization: "Information Technology",
+        email: "jones@example.com",
+        assignedModules: ["IT101", "IT102"],
+        },
+        {
+        id: "l3",
+        lecturerName: "Dr. Williams",
+        employeeId: "EMP103",
+        specialization: "Data Science",
+        email: "williams@example.com",
+        assignedModules: ["DS101", "DS102"],
+        },
 ];
 
-export const columns: ColumnDef<Module>[] = [
+export const columns: ColumnDef<Lecturer>[] = [
   {
-    accessorKey: "moduleCode",
-    header: ({ column }) => {
-        return (
-          <Button
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Module Code
-            <ArrowUpDown className="ml-2 h-4 w-4" />
-          </Button>
-        );
-      },
-    cell: ({ row }) => <div className="lowercase">{row.getValue("moduleCode")}</div>,
-  },
-  {
-    accessorKey: "moduleName",
-    header: "Module Name",
+    accessorKey: "lecturerName",
+    header: "Lecturer Name",
     cell: ({ row }) => (
-      <div className="capitalize">{row.getValue("moduleName")}</div>
+      <div className="capitalize">{row.getValue("lecturerName")}</div>
     ),
   },
   {
-    accessorKey: "course",
-    header: "Course",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("course")}</div>,
+    accessorKey: "employeeId",
+    header: "Employee ID",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("employeeId")}</div>,
   },
   {
-    accessorKey: "program",
-    header: "Program",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("program")}</div>,
+    accessorKey: "specialization",
+    header: "Specialization",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("specialization")}</div>,
   },
   {
-    accessorKey: "semester",
-    header: "Semester",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("semester")}</div>,
+    accessorKey: "email",
+    header: "Email",
+    cell: ({ row }) => <div className="lowercase">{row.getValue("email")}</div>,
   },
-  {
-    accessorKey: "credits",
-    header: "Credits",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("credits")}</div>,
-  },
+    {
+        accessorKey: "assignedModules",
+        header: "Assigned Modules",
+        cell: ({ row }) => (
+        <div className="capitalize">{(row.getValue("assignedModules") as string[]).join(", ")}</div>
+        ),
+    },
   {
     id: "actions",
     enableHiding: false,
     cell: ({ row }) => {
-      const module = row.original;
+      const lecturer = row.original;
 
       return (
         <DropdownMenu>
@@ -141,14 +122,14 @@ export const columns: ColumnDef<Module>[] = [
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
             <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(module.id)}
+              onClick={() => navigator.clipboard.writeText(lecturer.id)}
             >
-              Copy module ID
+              Copy lecturer ID
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>View Module</DropdownMenuItem>
-            <DropdownMenuItem>Edit Module</DropdownMenuItem>
-            <DropdownMenuItem>Delete Module</DropdownMenuItem>
+            <DropdownMenuItem>View Lecturer</DropdownMenuItem>
+            <DropdownMenuItem>Edit Lecturer</DropdownMenuItem>
+            <DropdownMenuItem>Delete Lecturer</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       );
@@ -156,7 +137,7 @@ export const columns: ColumnDef<Module>[] = [
   },
 ];
 
-export function ModulesTable() {
+export function LecturersTable() {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
@@ -188,15 +169,15 @@ export function ModulesTable() {
     <div className="w-full">
       <div className="flex items-center justify-between py-4">
         <Input
-          placeholder="Filter modules..."
-          value={(table.getColumn("moduleName")?.getFilterValue() as string) ?? ""}
+          placeholder="Filter lecturers..."
+          value={(table.getColumn("lecturerName")?.getFilterValue() as string) ?? ""}
           onChange={(event) =>
-            table.getColumn("moduleName")?.setFilterValue(event.target.value)
+            table.getColumn("lecturerName")?.setFilterValue(event.target.value)
           }
           className="max-w-sm"
         />
         <div className="flex space-x-2">
-            <ModuleFormModal />
+            <LecturerFormModal />
             <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="ml-auto">

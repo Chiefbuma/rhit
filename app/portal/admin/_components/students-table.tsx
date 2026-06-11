@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import * as React from "react";
 import {
-  type ColumnDef,
-  type SortingState,
+  ColumnDef,
+  ColumnFiltersState,
+  SortingState,
+  VisibilityState,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
@@ -11,14 +13,16 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowUpDown, ChevronLeft, ChevronRight, MoreHorizontal, PlusCircle } from "lucide-react";
+import { ArrowUpDown, ChevronDown, MoreHorizontal } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -30,39 +34,87 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { StudentFormModal } from "./student-form-modal";
 
-export type StudentRow = {
+// This type is used to define the shape of our data.
+// You can use a Zod schema here if you want.
+export type Student = {
   id: string;
-  student_name: string;
-  student_id: string;
+  studentName: string;
+  studentId: string;
   program: string;
-  status: string;
+  cohort: string;
+  email: string;
+  contactNumber: string;
 };
 
-export const columns: ColumnDef<StudentRow>[] = [
+// Placeholder data
+const data: Student[] = [
     {
-    accessorKey: "student_name",
-    header: ({ column }) => (
-      <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-        Student Name
-        <ArrowUpDown className="ml-2 h-4 w-4" />
-      </Button>
+        id: "s1",
+        studentName: "Alice",
+        studentId: "ST101",
+        program: "BSc. Computer Science",
+        cohort: "CS-2024",
+        email: "alice@example.com",
+        contactNumber: "123-456-7890",
+        },
+        {
+        id: "s2",
+        studentName: "Bob",
+        studentId: "ST102",
+        program: "BSc. Information Technology",
+        cohort: "IT-2024",
+        email: "bob@example.com",
+        contactNumber: "234-567-8901",
+        },
+        {
+        id: "s3",
+        studentName: "Charlie",
+        studentId: "ST103",
+        program: "BSc. Data Science",
+        cohort: "DS-2024",
+        email: "charlie@example.com",
+        contactNumber: "345-678-9012",
+        },
+];
+
+export const columns: ColumnDef<Student>[] = [
+  {
+    accessorKey: "studentName",
+    header: "Student Name",
+    cell: ({ row }) => (
+      <div className="capitalize">{row.getValue("studentName")}</div>
     ),
   },
   {
-    accessorKey: "student_id",
+    accessorKey: "studentId",
     header: "Student ID",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("studentId")}</div>,
   },
   {
     accessorKey: "program",
     header: "Program",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("program")}</div>,
   },
   {
-    accessorKey: "status",
-    header: "Status",
+    accessorKey: "cohort",
+    header: "Cohort",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("cohort")}</div>,
   },
+  {
+    accessorKey: "email",
+    header: "Email",
+    cell: ({ row }) => <div className="lowercase">{row.getValue("email")}</div>,
+  },
+    {
+        accessorKey: "contactNumber",
+        header: "Contact Number",
+        cell: ({ row }) => <div className="capitalize">{row.getValue("contactNumber")}</div>,
+    },
   {
     id: "actions",
+    enableHiding: false,
     cell: ({ row }) => {
       const student = row.original;
 
@@ -76,21 +128,15 @@ export const columns: ColumnDef<StudentRow>[] = [
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => alert(`Viewing profile for: ${student.student_name}`)}>
-              View Profile
+            <DropdownMenuItem
+              onClick={() => navigator.clipboard.writeText(student.id)}
+            >
+              Copy student ID
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => alert(`Viewing grades for: ${student.student_name}`)}>
-              View Grades
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => alert(`Viewing financials for: ${student.student_name}`)}>
-              View Financials
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => alert(`Deactivating: ${student.student_name}`)}>
-              Deactivate
-            </DropdownMenuItem>
-             <DropdownMenuItem onClick={() => alert(`Suspending: ${student.student_name}`)}>
-              Suspend
-            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem>View Student</DropdownMenuItem>
+            <DropdownMenuItem>Edit Student</DropdownMenuItem>
+            <DropdownMenuItem>Delete Student</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       );
@@ -98,51 +144,92 @@ export const columns: ColumnDef<StudentRow>[] = [
   },
 ];
 
-export function StudentsTable({ data: initialData }: { data: StudentRow[] }) {
-  const [data, setData] = useState(() => [...initialData]);
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [globalFilter, setGlobalFilter] = useState("");
+export function StudentsTable() {
+  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
+    []
+  );
+  const [columnVisibility, setColumnVisibility] =
+    React.useState<VisibilityState>({});
+  const [rowSelection, setRowSelection] = React.useState({});
 
   const table = useReactTable({
     data,
     columns,
-    state: { sorting, globalFilter },
     onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
+    onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    initialState: {
-        pagination: { pageSize: 10 }
-    }
+    onColumnVisibilityChange: setColumnVisibility,
+    onRowSelectionChange: setRowSelection,
+    state: {
+      sorting,
+      columnFilters,
+      columnVisibility,
+      rowSelection,
+    },
   });
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="w-full">
+      <div className="flex items-center justify-between py-4">
         <Input
           placeholder="Filter students..."
-          value={globalFilter}
-          onChange={(event) => setGlobalFilter(event.target.value)}
+          value={(table.getColumn("studentName")?.getFilterValue() as string) ?? ""}
+          onChange={(event) =>
+            table.getColumn("studentName")?.setFilterValue(event.target.value)
+          }
           className="max-w-sm"
         />
+        <div className="flex space-x-2">
+            <StudentFormModal />
+            <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="ml-auto">
+                Columns <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+                {table
+                .getAllColumns()
+                .filter((column) => column.getCanHide())
+                .map((column) => {
+                    return (
+                    <DropdownMenuCheckboxItem
+                        key={column.id}
+                        className="capitalize"
+                        checked={column.getIsVisible()}
+                        onCheckedChange={(value) =>
+                        column.toggleVisibility(!!value)
+                        }
+                    >
+                        {column.id}
+                    </DropdownMenuCheckboxItem>
+                    );
+                })}
+            </DropdownMenuContent>
+            </DropdownMenu>
+        </div>
       </div>
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                  </TableHead>
-                ))}
+                {headerGroup.headers.map((header) => {
+                  return (
+                    <TableHead key={header.id}>
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                    </TableHead>
+                  );
+                })}
               </TableRow>
             ))}
           </TableHeader>
@@ -155,42 +242,51 @@ export function StudentsTable({ data: initialData }: { data: StudentRow[] }) {
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
                     </TableCell>
                   ))}
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No students found.
+                <TableCell
+                  colSpan={columns.length}
+                  className="h-24 text-center"
+                >
+                  No results.
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
-        <div className="flex items-center justify-end space-x-2 py-4 text-sm text-muted-foreground">
-            <p>
-                Page {table.getState().pagination.pageIndex + 1} of {Math.max(table.getPageCount(), 1)}
-            </p>
-            <Button
-                variant="outline"
-                size="sm"
-                onClick={() => table.previousPage()}
-                disabled={!table.getCanPreviousPage()}
-            >
-                Previous
-            </Button>
-            <Button
-                variant="outline"
-                size="sm"
-                onClick={() => table.nextPage()}
-                disabled={!table.getCanNextPage()}
-            >
-                Next
-            </Button>
+      <div className="flex items-center justify-end space-x-2 py-4">
+        <div className="flex-1 text-sm text-muted-foreground">
+          {table.getFilteredSelectedRowModel().rows.length} of{" "}
+          {table.getFilteredRowModel().rows.length} row(s) selected.
         </div>
+        <div className="space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

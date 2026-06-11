@@ -34,101 +34,96 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { ModuleFormModal } from "./module-form-modal";
-
+import { ExamResultFormModal } from "./exam-result-form-modal";
 
 // This type is used to define the shape of our data.
 // You can use a Zod schema here if you want.
-export type Module = {
+export type ExamResult = {
   id: string;
-  moduleCode: string;
-  moduleName: string;
-  course: string;
-  program: string;
-  semester: number;
-  credits: number;
+  student: string;
+  module: string;
+  exam: string;
+  marks: number;
+  grade: "A" | "B" | "C" | "D" | "F";
+  lecturerComments: string;
+    status: "Pass" | "Fail";
 };
 
 // Placeholder data
-const data: Module[] = [
+const data: ExamResult[] = [
     {
-        id: "m5",
-        moduleCode: "CS501",
-        moduleName: "Advanced Algorithms",
-        course: "Computer Science",
-        program: "BSc. Computer Science",
-        semester: 2,
-        credits: 4,
-      },
-      {
-        id: "m6",
-        moduleCode: "EE602",
-        moduleName: "Digital Signal Processing",
-        course: "Electrical Engineering",
-        program: "BSc. Electrical Engineering",
-        semester: 1,
-        credits: 3,
-      },
-      {
-        id: "m7",
-        moduleCode: "ME703",
-        moduleName: "Thermodynamics II",
-        course: "Mechanical Engineering",
-        program: "BSc. Mechanical Engineering",
-        semester: 2,
-        credits: 4,
-      },
+        id: "er1",
+        student: "Student 1",
+        module: "CS101",
+        exam: "Midterm Exam",
+        marks: 85,
+        grade: "A",
+        lecturerComments: "Excellent work!",
+        status: "Pass",
+        },
+        {
+        id: "er2",
+        student: "Student 2",
+        module: "IT101",
+        exam: "Final Exam",
+        marks: 72,
+        grade: "B",
+        lecturerComments: "Good effort.",
+        status: "Pass",
+        },
+        {
+        id: "er3",
+        student: "Student 3",
+        module: "DS101",
+        exam: "Quiz 1",
+        marks: 45,
+        grade: "D",
+        lecturerComments: "Needs improvement.",
+        status: "Fail",
+        },
 ];
 
-export const columns: ColumnDef<Module>[] = [
+export const columns: ColumnDef<ExamResult>[] = [
   {
-    accessorKey: "moduleCode",
-    header: ({ column }) => {
-        return (
-          <Button
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Module Code
-            <ArrowUpDown className="ml-2 h-4 w-4" />
-          </Button>
-        );
-      },
-    cell: ({ row }) => <div className="lowercase">{row.getValue("moduleCode")}</div>,
+    accessorKey: "student",
+    header: "Student",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("student")}</div>,
   },
   {
-    accessorKey: "moduleName",
-    header: "Module Name",
-    cell: ({ row }) => (
-      <div className="capitalize">{row.getValue("moduleName")}</div>
-    ),
+    accessorKey: "module",
+    header: "Module",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("module")}</div>,
   },
   {
-    accessorKey: "course",
-    header: "Course",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("course")}</div>,
+    accessorKey: "exam",
+    header: "Exam",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("exam")}</div>,
   },
   {
-    accessorKey: "program",
-    header: "Program",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("program")}</div>,
+    accessorKey: "marks",
+    header: "Marks",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("marks")}</div>,
   },
   {
-    accessorKey: "semester",
-    header: "Semester",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("semester")}</div>,
+    accessorKey: "grade",
+    header: "Grade",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("grade")}</div>,
   },
-  {
-    accessorKey: "credits",
-    header: "Credits",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("credits")}</div>,
-  },
+    {
+        accessorKey: "lecturerComments",
+        header: "Lecturer Comments",
+        cell: ({ row }) => <div className="capitalize">{row.getValue("lecturerComments")}</div>,
+    },
+    {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => <div className="capitalize">{row.getValue("status")}</div>,
+    },
   {
     id: "actions",
     enableHiding: false,
     cell: ({ row }) => {
-      const module = row.original;
+      const examResult = row.original;
 
       return (
         <DropdownMenu>
@@ -141,14 +136,14 @@ export const columns: ColumnDef<Module>[] = [
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
             <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(module.id)}
+              onClick={() => navigator.clipboard.writeText(examResult.id)}
             >
-              Copy module ID
+              Copy result ID
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>View Module</DropdownMenuItem>
-            <DropdownMenuItem>Edit Module</DropdownMenuItem>
-            <DropdownMenuItem>Delete Module</DropdownMenuItem>
+            <DropdownMenuItem>View Result</DropdownMenuItem>
+            <DropdownMenuItem>Edit Result</DropdownMenuItem>
+            <DropdownMenuItem>Delete Result</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       );
@@ -156,7 +151,7 @@ export const columns: ColumnDef<Module>[] = [
   },
 ];
 
-export function ModulesTable() {
+export function ExamResultsTable() {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
@@ -188,15 +183,15 @@ export function ModulesTable() {
     <div className="w-full">
       <div className="flex items-center justify-between py-4">
         <Input
-          placeholder="Filter modules..."
-          value={(table.getColumn("moduleName")?.getFilterValue() as string) ?? ""}
+          placeholder="Filter results..."
+          value={(table.getColumn("student")?.getFilterValue() as string) ?? ""}
           onChange={(event) =>
-            table.getColumn("moduleName")?.setFilterValue(event.target.value)
+            table.getColumn("student")?.setFilterValue(event.target.value)
           }
           className="max-w-sm"
         />
         <div className="flex space-x-2">
-            <ModuleFormModal />
+            <ExamResultFormModal />
             <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="ml-auto">

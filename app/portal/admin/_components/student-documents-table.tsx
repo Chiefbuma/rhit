@@ -34,101 +34,61 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { ModuleFormModal } from "./module-form-modal";
+import { StudentDocumentFormModal } from "./student-document-form-modal";
 
 
 // This type is used to define the shape of our data.
 // You can use a Zod schema here if you want.
-export type Module = {
+export type StudentDocument = {
   id: string;
-  moduleCode: string;
-  moduleName: string;
-  course: string;
-  program: string;
-  semester: number;
-  credits: number;
+  documentType: string;
+  filePath: string;
+  createdAt: string;
 };
 
 // Placeholder data
-const data: Module[] = [
+const data: StudentDocument[] = [
     {
-        id: "m5",
-        moduleCode: "CS501",
-        moduleName: "Advanced Algorithms",
-        course: "Computer Science",
-        program: "BSc. Computer Science",
-        semester: 2,
-        credits: 4,
-      },
-      {
-        id: "m6",
-        moduleCode: "EE602",
-        moduleName: "Digital Signal Processing",
-        course: "Electrical Engineering",
-        program: "BSc. Electrical Engineering",
-        semester: 1,
-        credits: 3,
-      },
-      {
-        id: "m7",
-        moduleCode: "ME703",
-        moduleName: "Thermodynamics II",
-        course: "Mechanical Engineering",
-        program: "BSc. Mechanical Engineering",
-        semester: 2,
-        credits: 4,
-      },
+        id: "d1",
+        documentType: "ID",
+        filePath: "/documents/id.pdf",
+        createdAt: "2024-09-02",
+        },
+        {
+        id: "d2",
+        documentType: "Certificate",
+        filePath: "/documents/certificate.pdf",
+        createdAt: "2024-09-02",
+        },
+        {
+        id: "d3",
+        documentType: "Passport Photo",
+        filePath: "/documents/passport.jpg",
+        createdAt: "2024-09-02",
+        },
 ];
 
-export const columns: ColumnDef<Module>[] = [
+export const columns: ColumnDef<StudentDocument>[] = [
   {
-    accessorKey: "moduleCode",
-    header: ({ column }) => {
-        return (
-          <Button
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Module Code
-            <ArrowUpDown className="ml-2 h-4 w-4" />
-          </Button>
-        );
-      },
-    cell: ({ row }) => <div className="lowercase">{row.getValue("moduleCode")}</div>,
+    accessorKey: "documentType",
+    header: "Document Type",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("documentType")}</div>,
   },
   {
-    accessorKey: "moduleName",
-    header: "Module Name",
-    cell: ({ row }) => (
-      <div className="capitalize">{row.getValue("moduleName")}</div>
-    ),
+    accessorKey: "filePath",
+    header: "File Path",
+    cell: ({ row }) => <div className="lowercase">{row.getValue("filePath")}</div>,
   },
   {
-    accessorKey: "course",
-    header: "Course",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("course")}</div>,
-  },
-  {
-    accessorKey: "program",
-    header: "Program",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("program")}</div>,
-  },
-  {
-    accessorKey: "semester",
-    header: "Semester",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("semester")}</div>,
-  },
-  {
-    accessorKey: "credits",
-    header: "Credits",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("credits")}</div>,
+    accessorKey: "createdAt",
+    header: "Created At",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("createdAt")}</div>,
   },
   {
     id: "actions",
     enableHiding: false,
     cell: ({ row }) => {
-      const module = row.original;
+      const studentDocument = row.original;
 
       return (
         <DropdownMenu>
@@ -141,14 +101,13 @@ export const columns: ColumnDef<Module>[] = [
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
             <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(module.id)}
+              onClick={() => navigator.clipboard.writeText(studentDocument.id)}
             >
-              Copy module ID
+              Copy document ID
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>View Module</DropdownMenuItem>
-            <DropdownMenuItem>Edit Module</DropdownMenuItem>
-            <DropdownMenuItem>Delete Module</DropdownMenuItem>
+            <DropdownMenuItem>View Document</DropdownMenuItem>
+            <DropdownMenuItem>Delete Document</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       );
@@ -156,7 +115,7 @@ export const columns: ColumnDef<Module>[] = [
   },
 ];
 
-export function ModulesTable() {
+export function StudentDocumentsTable() {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
@@ -188,41 +147,15 @@ export function ModulesTable() {
     <div className="w-full">
       <div className="flex items-center justify-between py-4">
         <Input
-          placeholder="Filter modules..."
-          value={(table.getColumn("moduleName")?.getFilterValue() as string) ?? ""}
+          placeholder="Filter documents..."
+          value={(table.getColumn("documentType")?.getFilterValue() as string) ?? ""}
           onChange={(event) =>
-            table.getColumn("moduleName")?.setFilterValue(event.target.value)
+            table.getColumn("documentType")?.setFilterValue(event.target.value)
           }
           className="max-w-sm"
         />
         <div className="flex space-x-2">
-            <ModuleFormModal />
-            <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="ml-auto">
-                Columns <ChevronDown className="ml-2 h-4 w-4" />
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-                {table
-                .getAllColumns()
-                .filter((column) => column.getCanHide())
-                .map((column) => {
-                    return (
-                    <DropdownMenuCheckboxItem
-                        key={column.id}
-                        className="capitalize"
-                        checked={column.getIsVisible()}
-                        onCheckedChange={(value) =>
-                        column.toggleVisibility(!!value)
-                        }
-                    >
-                        {column.id}
-                    </DropdownMenuCheckboxItem>
-                    );
-                })}
-            </DropdownMenuContent>
-            </DropdownMenu>
+            <StudentDocumentFormModal />
         </div>
       </div>
       <div className="rounded-md border">

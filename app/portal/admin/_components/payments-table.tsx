@@ -34,101 +34,79 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { ModuleFormModal } from "./module-form-modal";
+import { PaymentFormModal } from "./payment-form-modal";
 
 
 // This type is used to define the shape of our data.
 // You can use a Zod schema here if you want.
-export type Module = {
+export type Payment = {
   id: string;
-  moduleCode: string;
-  moduleName: string;
-  course: string;
-  program: string;
-  semester: number;
-  credits: number;
+  student: string;
+  invoice: string;
+  amount: number;
+  paymentDate: string;
+    paymentMethod: "Credit Card" | "Bank Transfer" | "Cash";
 };
 
 // Placeholder data
-const data: Module[] = [
+const data: Payment[] = [
     {
-        id: "m5",
-        moduleCode: "CS501",
-        moduleName: "Advanced Algorithms",
-        course: "Computer Science",
-        program: "BSc. Computer Science",
-        semester: 2,
-        credits: 4,
-      },
-      {
-        id: "m6",
-        moduleCode: "EE602",
-        moduleName: "Digital Signal Processing",
-        course: "Electrical Engineering",
-        program: "BSc. Electrical Engineering",
-        semester: 1,
-        credits: 3,
-      },
-      {
-        id: "m7",
-        moduleCode: "ME703",
-        moduleName: "Thermodynamics II",
-        course: "Mechanical Engineering",
-        program: "BSc. Mechanical Engineering",
-        semester: 2,
-        credits: 4,
-      },
+        id: "p1",
+        student: "Student 1",
+        invoice: "inv1",
+        amount: 500,
+        paymentDate: "2024-08-15",
+        paymentMethod: "Credit Card",
+        },
+        {
+        id: "p2",
+        student: "Student 2",
+        invoice: "inv2",
+        amount: 450,
+        paymentDate: "2024-08-20",
+        paymentMethod: "Bank Transfer",
+        },
+        {
+        id: "p3",
+        student: "Student 3",
+        invoice: "inv3",
+        amount: 550,
+        paymentDate: "2024-08-25",
+        paymentMethod: "Cash",
+        },
 ];
 
-export const columns: ColumnDef<Module>[] = [
+export const columns: ColumnDef<Payment>[] = [
   {
-    accessorKey: "moduleCode",
-    header: ({ column }) => {
-        return (
-          <Button
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Module Code
-            <ArrowUpDown className="ml-2 h-4 w-4" />
-          </Button>
-        );
-      },
-    cell: ({ row }) => <div className="lowercase">{row.getValue("moduleCode")}</div>,
+    accessorKey: "student",
+    header: "Student",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("student")}</div>,
   },
   {
-    accessorKey: "moduleName",
-    header: "Module Name",
-    cell: ({ row }) => (
-      <div className="capitalize">{row.getValue("moduleName")}</div>
-    ),
+    accessorKey: "invoice",
+    header: "Invoice",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("invoice")}</div>,
   },
   {
-    accessorKey: "course",
-    header: "Course",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("course")}</div>,
+    accessorKey: "amount",
+    header: "Amount",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("amount")}</div>,
   },
   {
-    accessorKey: "program",
-    header: "Program",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("program")}</div>,
+    accessorKey: "paymentDate",
+    header: "Payment Date",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("paymentDate")}</div>,
   },
   {
-    accessorKey: "semester",
-    header: "Semester",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("semester")}</div>,
-  },
-  {
-    accessorKey: "credits",
-    header: "Credits",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("credits")}</div>,
+    accessorKey: "paymentMethod",
+    header: "Payment Method",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("paymentMethod")}</div>,
   },
   {
     id: "actions",
     enableHiding: false,
     cell: ({ row }) => {
-      const module = row.original;
+      const payment = row.original;
 
       return (
         <DropdownMenu>
@@ -141,14 +119,14 @@ export const columns: ColumnDef<Module>[] = [
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
             <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(module.id)}
+              onClick={() => navigator.clipboard.writeText(payment.id)}
             >
-              Copy module ID
+              Copy payment ID
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>View Module</DropdownMenuItem>
-            <DropdownMenuItem>Edit Module</DropdownMenuItem>
-            <DropdownMenuItem>Delete Module</DropdownMenuItem>
+            <DropdownMenuItem>View Payment</DropdownMenuItem>
+            <DropdownMenuItem>Edit Payment</DropdownMenuItem>
+            <DropdownMenuItem>Delete Payment</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       );
@@ -156,7 +134,7 @@ export const columns: ColumnDef<Module>[] = [
   },
 ];
 
-export function ModulesTable() {
+export function PaymentsTable() {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
@@ -188,15 +166,15 @@ export function ModulesTable() {
     <div className="w-full">
       <div className="flex items-center justify-between py-4">
         <Input
-          placeholder="Filter modules..."
-          value={(table.getColumn("moduleName")?.getFilterValue() as string) ?? ""}
+          placeholder="Filter payments..."
+          value={(table.getColumn("student")?.getFilterValue() as string) ?? ""}
           onChange={(event) =>
-            table.getColumn("moduleName")?.setFilterValue(event.target.value)
+            table.getColumn("student")?.setFilterValue(event.target.value)
           }
           className="max-w-sm"
         />
         <div className="flex space-x-2">
-            <ModuleFormModal />
+            <PaymentFormModal />
             <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="ml-auto">

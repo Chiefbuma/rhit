@@ -34,101 +34,70 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { ModuleFormModal } from "./module-form-modal";
+import { InvoiceFormModal } from "./invoice-form-modal";
 
 
 // This type is used to define the shape of our data.
 // You can use a Zod schema here if you want.
-export type Module = {
+export type Invoice = {
   id: string;
-  moduleCode: string;
-  moduleName: string;
-  course: string;
-  program: string;
-  semester: number;
-  credits: number;
+  student: string;
+  amount: number;
+  dueDate: string;
+    status: "Paid" | "Pending" | "Overdue";
 };
 
 // Placeholder data
-const data: Module[] = [
+const data: Invoice[] = [
     {
-        id: "m5",
-        moduleCode: "CS501",
-        moduleName: "Advanced Algorithms",
-        course: "Computer Science",
-        program: "BSc. Computer Science",
-        semester: 2,
-        credits: 4,
-      },
-      {
-        id: "m6",
-        moduleCode: "EE602",
-        moduleName: "Digital Signal Processing",
-        course: "Electrical Engineering",
-        program: "BSc. Electrical Engineering",
-        semester: 1,
-        credits: 3,
-      },
-      {
-        id: "m7",
-        moduleCode: "ME703",
-        moduleName: "Thermodynamics II",
-        course: "Mechanical Engineering",
-        program: "BSc. Mechanical Engineering",
-        semester: 2,
-        credits: 4,
-      },
+        id: "inv1",
+        student: "Student 1",
+        amount: 500,
+        dueDate: "2024-09-01",
+        status: "Paid",
+        },
+        {
+        id: "inv2",
+        student: "Student 2",
+        amount: 450,
+        dueDate: "2024-09-01",
+        status: "Pending",
+        },
+        {
+        id: "inv3",
+        student: "Student 3",
+        amount: 550,
+        dueDate: "2024-09-01",
+        status: "Overdue",
+        },
 ];
 
-export const columns: ColumnDef<Module>[] = [
+export const columns: ColumnDef<Invoice>[] = [
   {
-    accessorKey: "moduleCode",
-    header: ({ column }) => {
-        return (
-          <Button
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Module Code
-            <ArrowUpDown className="ml-2 h-4 w-4" />
-          </Button>
-        );
-      },
-    cell: ({ row }) => <div className="lowercase">{row.getValue("moduleCode")}</div>,
+    accessorKey: "student",
+    header: "Student",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("student")}</div>,
   },
   {
-    accessorKey: "moduleName",
-    header: "Module Name",
-    cell: ({ row }) => (
-      <div className="capitalize">{row.getValue("moduleName")}</div>
-    ),
+    accessorKey: "amount",
+    header: "Amount",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("amount")}</div>,
   },
   {
-    accessorKey: "course",
-    header: "Course",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("course")}</div>,
+    accessorKey: "dueDate",
+    header: "Due Date",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("dueDate")}</div>,
   },
   {
-    accessorKey: "program",
-    header: "Program",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("program")}</div>,
-  },
-  {
-    accessorKey: "semester",
-    header: "Semester",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("semester")}</div>,
-  },
-  {
-    accessorKey: "credits",
-    header: "Credits",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("credits")}</div>,
+    accessorKey: "status",
+    header: "Status",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("status")}</div>,
   },
   {
     id: "actions",
     enableHiding: false,
     cell: ({ row }) => {
-      const module = row.original;
+      const invoice = row.original;
 
       return (
         <DropdownMenu>
@@ -141,14 +110,14 @@ export const columns: ColumnDef<Module>[] = [
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
             <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(module.id)}
+              onClick={() => navigator.clipboard.writeText(invoice.id)}
             >
-              Copy module ID
+              Copy invoice ID
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>View Module</DropdownMenuItem>
-            <DropdownMenuItem>Edit Module</DropdownMenuItem>
-            <DropdownMenuItem>Delete Module</DropdownMenuItem>
+            <DropdownMenuItem>View Invoice</DropdownMenuItem>
+            <DropdownMenuItem>Edit Invoice</DropdownMenuItem>
+            <DropdownMenuItem>Delete Invoice</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       );
@@ -156,7 +125,7 @@ export const columns: ColumnDef<Module>[] = [
   },
 ];
 
-export function ModulesTable() {
+export function InvoicesTable() {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
@@ -188,15 +157,15 @@ export function ModulesTable() {
     <div className="w-full">
       <div className="flex items-center justify-between py-4">
         <Input
-          placeholder="Filter modules..."
-          value={(table.getColumn("moduleName")?.getFilterValue() as string) ?? ""}
+          placeholder="Filter invoices..."
+          value={(table.getColumn("student")?.getFilterValue() as string) ?? ""}
           onChange={(event) =>
-            table.getColumn("moduleName")?.setFilterValue(event.target.value)
+            table.getColumn("student")?.setFilterValue(event.target.value)
           }
           className="max-w-sm"
         />
         <div className="flex space-x-2">
-            <ModuleFormModal />
+            <InvoiceFormModal />
             <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="ml-auto">

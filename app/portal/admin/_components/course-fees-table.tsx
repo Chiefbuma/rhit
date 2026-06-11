@@ -34,75 +34,49 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { ModuleFormModal } from "./module-form-modal";
+import { CourseFeeFormModal } from "./course-fee-form-modal";
 
 
 // This type is used to define the shape of our data.
 // You can use a Zod schema here if you want.
-export type Module = {
+export type CourseFee = {
   id: string;
-  moduleCode: string;
-  moduleName: string;
-  course: string;
   program: string;
-  semester: number;
-  credits: number;
+  course: string;
+  feeAmount: number;
+  academicYear: string;
 };
 
 // Placeholder data
-const data: Module[] = [
+const data: CourseFee[] = [
     {
-        id: "m5",
-        moduleCode: "CS501",
-        moduleName: "Advanced Algorithms",
-        course: "Computer Science",
+        id: "cf1",
         program: "BSc. Computer Science",
-        semester: 2,
-        credits: 4,
-      },
-      {
-        id: "m6",
-        moduleCode: "EE602",
-        moduleName: "Digital Signal Processing",
-        course: "Electrical Engineering",
-        program: "BSc. Electrical Engineering",
-        semester: 1,
-        credits: 3,
-      },
-      {
-        id: "m7",
-        moduleCode: "ME703",
-        moduleName: "Thermodynamics II",
-        course: "Mechanical Engineering",
-        program: "BSc. Mechanical Engineering",
-        semester: 2,
-        credits: 4,
-      },
+        course: "CS101",
+        feeAmount: 500,
+        academicYear: "2024-2025",
+        },
+        {
+        id: "cf2",
+        program: "BSc. Information Technology",
+        course: "IT101",
+        feeAmount: 450,
+        academicYear: "2024-2025",
+        },
+        {
+        id: "cf3",
+        program: "BSc. Data Science",
+        course: "DS101",
+        feeAmount: 550,
+        academicYear: "2024-2025",
+        },
 ];
 
-export const columns: ColumnDef<Module>[] = [
+export const columns: ColumnDef<CourseFee>[] = [
   {
-    accessorKey: "moduleCode",
-    header: ({ column }) => {
-        return (
-          <Button
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          >
-            Module Code
-            <ArrowUpDown className="ml-2 h-4 w-4" />
-          </Button>
-        );
-      },
-    cell: ({ row }) => <div className="lowercase">{row.getValue("moduleCode")}</div>,
-  },
-  {
-    accessorKey: "moduleName",
-    header: "Module Name",
-    cell: ({ row }) => (
-      <div className="capitalize">{row.getValue("moduleName")}</div>
-    ),
+    accessorKey: "program",
+    header: "Program",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("program")}</div>,
   },
   {
     accessorKey: "course",
@@ -110,25 +84,20 @@ export const columns: ColumnDef<Module>[] = [
     cell: ({ row }) => <div className="capitalize">{row.getValue("course")}</div>,
   },
   {
-    accessorKey: "program",
-    header: "Program",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("program")}</div>,
+    accessorKey: "feeAmount",
+    header: "Fee Amount",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("feeAmount")}</div>,
   },
   {
-    accessorKey: "semester",
-    header: "Semester",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("semester")}</div>,
-  },
-  {
-    accessorKey: "credits",
-    header: "Credits",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("credits")}</div>,
+    accessorKey: "academicYear",
+    header: "Academic Year",
+    cell: ({ row }) => <div className="capitalize">{row.getValue("academicYear")}</div>,
   },
   {
     id: "actions",
     enableHiding: false,
     cell: ({ row }) => {
-      const module = row.original;
+      const courseFee = row.original;
 
       return (
         <DropdownMenu>
@@ -141,14 +110,14 @@ export const columns: ColumnDef<Module>[] = [
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
             <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(module.id)}
+              onClick={() => navigator.clipboard.writeText(courseFee.id)}
             >
-              Copy module ID
+              Copy fee ID
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>View Module</DropdownMenuItem>
-            <DropdownMenuItem>Edit Module</DropdownMenuItem>
-            <DropdownMenuItem>Delete Module</DropdownMenuItem>
+            <DropdownMenuItem>View Fee</DropdownMenuItem>
+            <DropdownMenuItem>Edit Fee</DropdownMenuItem>
+            <DropdownMenuItem>Delete Fee</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       );
@@ -156,7 +125,7 @@ export const columns: ColumnDef<Module>[] = [
   },
 ];
 
-export function ModulesTable() {
+export function CourseFeesTable() {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
@@ -188,15 +157,15 @@ export function ModulesTable() {
     <div className="w-full">
       <div className="flex items-center justify-between py-4">
         <Input
-          placeholder="Filter modules..."
-          value={(table.getColumn("moduleName")?.getFilterValue() as string) ?? ""}
+          placeholder="Filter course fees..."
+          value={(table.getColumn("program")?.getFilterValue() as string) ?? ""}
           onChange={(event) =>
-            table.getColumn("moduleName")?.setFilterValue(event.target.value)
+            table.getColumn("program")?.setFilterValue(event.target.value)
           }
           className="max-w-sm"
         />
         <div className="flex space-x-2">
-            <ModuleFormModal />
+            <CourseFeeFormModal />
             <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="ml-auto">
