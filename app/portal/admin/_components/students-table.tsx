@@ -30,43 +30,32 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ApplicationFormModal } from "./application-form-modal";
 
-export type ApplicationRow = {
+export type StudentRow = {
   id: string;
-  applicant_name: string;
-  email: string;
-  program_applied: string;
-  kcse_grade: string;
-  application_date: string;
-  status: "new" | "in-progress" | "reviewed" | "accepted" | "rejected";
+  student_name: string;
+  student_id: string;
+  program: string;
+  status: string;
 };
 
-export const columns: ColumnDef<ApplicationRow>[] = [
-  {
-    accessorKey: "applicant_name",
+export const columns: ColumnDef<StudentRow>[] = [
+    {
+    accessorKey: "student_name",
     header: ({ column }) => (
       <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-        Applicant Name
+        Student Name
         <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
   },
   {
-    accessorKey: "email",
-    header: "Email",
+    accessorKey: "student_id",
+    header: "Student ID",
   },
   {
-    accessorKey: "program_applied",
-    header: "Program Applied",
-  },
-  {
-    accessorKey: "kcse_grade",
-    header: "KCSE Grade",
-  },
-    {
-    accessorKey: "application_date",
-    header: "Application Date",
+    accessorKey: "program",
+    header: "Program",
   },
   {
     accessorKey: "status",
@@ -75,7 +64,7 @@ export const columns: ColumnDef<ApplicationRow>[] = [
   {
     id: "actions",
     cell: ({ row }) => {
-      const application = row.original;
+      const student = row.original;
 
       return (
         <DropdownMenu>
@@ -87,14 +76,20 @@ export const columns: ColumnDef<ApplicationRow>[] = [
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => alert(`Viewing application: ${application.applicant_name}`)}>
-              View Application
+            <DropdownMenuItem onClick={() => alert(`Viewing profile for: ${student.student_name}`)}>
+              View Profile
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => alert(`Updating status for: ${application.applicant_name}`)}>
-              Update Status
+            <DropdownMenuItem onClick={() => alert(`Viewing grades for: ${student.student_name}`)}>
+              View Grades
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => alert(`Moving to acceptance: ${application.applicant_name}`)}>
-              Move to Acceptance
+            <DropdownMenuItem onClick={() => alert(`Viewing financials for: ${student.student_name}`)}>
+              View Financials
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => alert(`Deactivating: ${student.student_name}`)}>
+              Deactivate
+            </DropdownMenuItem>
+             <DropdownMenuItem onClick={() => alert(`Suspending: ${student.student_name}`)}>
+              Suspend
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -103,7 +98,7 @@ export const columns: ColumnDef<ApplicationRow>[] = [
   },
 ];
 
-export function ApplicationsTable({ data: initialData }: { data: ApplicationRow[] }) {
+export function StudentsTable({ data: initialData }: { data: StudentRow[] }) {
   const [data, setData] = useState(() => [...initialData]);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -127,17 +122,11 @@ export function ApplicationsTable({ data: initialData }: { data: ApplicationRow[
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <Input
-          placeholder="Filter applications..."
+          placeholder="Filter students..."
           value={globalFilter}
           onChange={(event) => setGlobalFilter(event.target.value)}
           className="max-w-sm"
         />
-        <ApplicationFormModal>
-          <Button>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Create Application
-          </Button>
-        </ApplicationFormModal>
       </div>
       <div className="rounded-md border">
         <Table>
@@ -174,7 +163,7 @@ export function ApplicationsTable({ data: initialData }: { data: ApplicationRow[
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No applications found.
+                  No students found.
                 </TableCell>
               </TableRow>
             )}

@@ -30,20 +30,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ApplicationFormModal } from "./application-form-modal";
 
-export type ApplicationRow = {
+export type AcceptanceRow = {
   id: string;
   applicant_name: string;
   email: string;
-  program_applied: string;
-  kcse_grade: string;
-  application_date: string;
-  status: "new" | "in-progress" | "reviewed" | "accepted" | "rejected";
+  program: string;
+  acceptance_date: string;
+  acceptance_letter_url: string;
+  status: string;
 };
 
-export const columns: ColumnDef<ApplicationRow>[] = [
-  {
+export const columns: ColumnDef<AcceptanceRow>[] = [
+    {
     accessorKey: "applicant_name",
     header: ({ column }) => (
       <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
@@ -57,16 +56,21 @@ export const columns: ColumnDef<ApplicationRow>[] = [
     header: "Email",
   },
   {
-    accessorKey: "program_applied",
-    header: "Program Applied",
+    accessorKey: "program",
+    header: "Program",
   },
   {
-    accessorKey: "kcse_grade",
-    header: "KCSE Grade",
+    accessorKey: "acceptance_date",
+    header: "Acceptance Date",
   },
-    {
-    accessorKey: "application_date",
-    header: "Application Date",
+  {
+    accessorKey: "acceptance_letter_url",
+    header: "Acceptance Letter",
+    cell: ({ row }) => (
+        <a href={row.original.acceptance_letter_url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+            View Letter
+        </a>
+    ),
   },
   {
     accessorKey: "status",
@@ -75,7 +79,7 @@ export const columns: ColumnDef<ApplicationRow>[] = [
   {
     id: "actions",
     cell: ({ row }) => {
-      const application = row.original;
+      const acceptance = row.original;
 
       return (
         <DropdownMenu>
@@ -87,14 +91,14 @@ export const columns: ColumnDef<ApplicationRow>[] = [
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => alert(`Viewing application: ${application.applicant_name}`)}>
-              View Application
+            <DropdownMenuItem onClick={() => alert(`Sending acceptance letter to: ${acceptance.applicant_name}`)}>
+              Send Acceptance Letter
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => alert(`Updating status for: ${application.applicant_name}`)}>
-              Update Status
+            <DropdownMenuItem onClick={() => alert(`Rejecting: ${acceptance.applicant_name}`)}>
+              Reject
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => alert(`Moving to acceptance: ${application.applicant_name}`)}>
-              Move to Acceptance
+            <DropdownMenuItem onClick={() => alert(`Moving to onboarding: ${acceptance.applicant_name}`)}>
+              Move to Onboarding
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -103,7 +107,7 @@ export const columns: ColumnDef<ApplicationRow>[] = [
   },
 ];
 
-export function ApplicationsTable({ data: initialData }: { data: ApplicationRow[] }) {
+export function AcceptanceTable({ data: initialData }: { data: AcceptanceRow[] }) {
   const [data, setData] = useState(() => [...initialData]);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -127,17 +131,14 @@ export function ApplicationsTable({ data: initialData }: { data: ApplicationRow[
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <Input
-          placeholder="Filter applications..."
+          placeholder="Filter accepted applicants..."
           value={globalFilter}
           onChange={(event) => setGlobalFilter(event.target.value)}
           className="max-w-sm"
         />
-        <ApplicationFormModal>
-          <Button>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Create Application
-          </Button>
-        </ApplicationFormModal>
+        <Button onClick={() => alert("Opening bulk action modal.")}>
+            Bulk Actions
+        </Button>
       </div>
       <div className="rounded-md border">
         <Table>
@@ -174,7 +175,7 @@ export function ApplicationsTable({ data: initialData }: { data: ApplicationRow[
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No applications found.
+                  No accepted applicants found.
                 </TableCell>
               </TableRow>
             )}

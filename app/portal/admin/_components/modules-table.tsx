@@ -11,7 +11,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowUpDown, ChevronLeft, ChevronRight, MoreHorizontal, PlusCircle } from "lucide-react";
+import { ArrowUpDown, MoreHorizontal, PlusCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -30,52 +30,52 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ApplicationFormModal } from "./application-form-modal";
+import { ModuleFormModal } from "./module-form-modal";
 
-export type ApplicationRow = {
+export type ModuleRow = {
   id: string;
-  applicant_name: string;
-  email: string;
-  program_applied: string;
-  kcse_grade: string;
-  application_date: string;
-  status: "new" | "in-progress" | "reviewed" | "accepted" | "rejected";
+  module_code: string;
+  name: string;
+  course: string;
+  program: string;
+  semester: string;
+  credits: number;
 };
 
-export const columns: ColumnDef<ApplicationRow>[] = [
+export const columns: ColumnDef<ModuleRow>[] = [
   {
-    accessorKey: "applicant_name",
+    accessorKey: "module_code",
+    header: "Module Code",
+  },
+  {
+    accessorKey: "name",
     header: ({ column }) => (
       <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-        Applicant Name
+        Module Name
         <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
   },
   {
-    accessorKey: "email",
-    header: "Email",
+    accessorKey: "course",
+    header: "Course",
   },
   {
-    accessorKey: "program_applied",
-    header: "Program Applied",
+    accessorKey: "program",
+    header: "Program",
   },
   {
-    accessorKey: "kcse_grade",
-    header: "KCSE Grade",
-  },
-    {
-    accessorKey: "application_date",
-    header: "Application Date",
+    accessorKey: "semester",
+    header: "Semester",
   },
   {
-    accessorKey: "status",
-    header: "Status",
+    accessorKey: "credits",
+    header: "Credits",
   },
   {
     id: "actions",
     cell: ({ row }) => {
-      const application = row.original;
+      const module = row.original;
 
       return (
         <DropdownMenu>
@@ -87,14 +87,11 @@ export const columns: ColumnDef<ApplicationRow>[] = [
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => alert(`Viewing application: ${application.applicant_name}`)}>
-              View Application
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => alert(`Updating status for: ${application.applicant_name}`)}>
-              Update Status
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => alert(`Moving to acceptance: ${application.applicant_name}`)}>
-              Move to Acceptance
+            <ModuleFormModal module={module}>
+              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>Edit</DropdownMenuItem>
+            </ModuleFormModal>
+            <DropdownMenuItem onClick={() => alert(`Deleting module: ${module.name}`)}>
+              Delete
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -103,7 +100,7 @@ export const columns: ColumnDef<ApplicationRow>[] = [
   },
 ];
 
-export function ApplicationsTable({ data: initialData }: { data: ApplicationRow[] }) {
+export function ModulesTable({ data: initialData }: { data: ModuleRow[] }) {
   const [data, setData] = useState(() => [...initialData]);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -127,17 +124,17 @@ export function ApplicationsTable({ data: initialData }: { data: ApplicationRow[
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <Input
-          placeholder="Filter applications..."
+          placeholder="Filter modules..."
           value={globalFilter}
           onChange={(event) => setGlobalFilter(event.target.value)}
           className="max-w-sm"
         />
-        <ApplicationFormModal>
+        <ModuleFormModal>
           <Button>
               <PlusCircle className="mr-2 h-4 w-4" />
-              Create Application
+              Add Module
           </Button>
-        </ApplicationFormModal>
+        </ModuleFormModal>
       </div>
       <div className="rounded-md border">
         <Table>
@@ -174,7 +171,7 @@ export function ApplicationsTable({ data: initialData }: { data: ApplicationRow[
             ) : (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No applications found.
+                  No modules found.
                 </TableCell>
               </TableRow>
             )}
