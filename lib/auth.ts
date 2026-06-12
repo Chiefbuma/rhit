@@ -82,7 +82,7 @@ export async function requireUser(permission?: string) {
   if (!user) redirect("/login");
 
   if (permission && !user.permissions.includes(permission)) {
-    redirect(user.permissions.includes("portal.student") ? "/portal/student" : "/login");
+    redirect("/login");
   }
 
   return user;

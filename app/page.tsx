@@ -119,6 +119,41 @@ export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [formStep, setFormStep] = useState(1);
   const [showAllGallery, setShowAllGallery] = useState(false);
+  const [applicationStatus, setApplicationStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
+
+  async function handleApplicationSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (formStep < 3) {
+      setFormStep(formStep + 1);
+      return;
+    }
+
+    const formData = new FormData(event.currentTarget);
+    setApplicationStatus("submitting");
+
+    const response = await fetch("/api/applications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        full_name: formData.get("full_name"),
+        email: formData.get("email"),
+        phone: formData.get("phone"),
+        date_of_birth: formData.get("date_of_birth"),
+        program: formData.get("program"),
+        kcse_mean_grade: formData.get("kcse_mean_grade"),
+        kcse_year: formData.get("kcse_year"),
+      }),
+    });
+
+    if (response.ok) {
+      event.currentTarget.reset();
+      setFormStep(1);
+      setApplicationStatus("success");
+    } else {
+      setApplicationStatus("error");
+    }
+  }
 
   const announcements = [
     {
@@ -890,26 +925,26 @@ export default function Home() {
                 ))}
               </div>
 
-              <form className="space-y-6 md:space-y-8" onSubmit={(e) => { e.preventDefault(); if(formStep < 3) setFormStep(formStep + 1); }}>
+              <form className="space-y-6 md:space-y-8" onSubmit={handleApplicationSubmit}>
                 {formStep === 1 && (
                   <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6 md:space-y-8">
                     <h3 className="text-2xl md:text-3xl font-display font-black text-dark uppercase mb-4 md:mb-8 text-center sm:text-left">Personal Information</h3>
                     <div className="grid sm:grid-cols-2 gap-4 md:gap-8">
                       <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-dark/80 ml-1">Full Name</label>
-                        <input type="text" placeholder="John Doe" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-medium text-sm md:text-base" required />
+                        <input name="full_name" type="text" placeholder="John Doe" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-medium text-sm md:text-base" required />
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-dark/80 ml-1">Email Address</label>
-                        <input type="email" placeholder="john@example.com" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-medium text-sm md:text-base" required />
+                        <input name="email" type="email" placeholder="john@example.com" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-medium text-sm md:text-base" required />
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-dark/80 ml-1">Phone Number</label>
-                        <input type="tel" placeholder="0700 000 000" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-medium text-sm md:text-base" required />
+                        <input name="phone" type="tel" placeholder="0700 000 000" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-medium text-sm md:text-base" required />
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-dark/80 ml-1">Date of Birth</label>
-                        <input type="date" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-medium text-sm md:text-base" required />
+                        <input name="date_of_birth" type="date" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-medium text-sm md:text-base" required />
                       </div>
                     </div>
                   </motion.div>
@@ -921,7 +956,7 @@ export default function Home() {
                     <div className="space-y-4 md:space-y-8">
                       <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-dark/40 ml-1">Select Program</label>
-                        <select className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-bold text-dark text-sm md:text-base" required>
+                        <select name="program" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-bold text-dark text-sm md:text-base" required>
                           <option value="">Choose a certificate program...</option>
                           <option value="cna">Certificate in Nursing Assistant (CNA)</option>
                           <option value="hrit">Certificate in Health Records (HRIT)</option>
@@ -931,11 +966,11 @@ export default function Home() {
                       <div className="grid sm:grid-cols-2 gap-4 md:gap-8">
                         <div className="space-y-2">
                           <label className="text-[10px] font-black uppercase tracking-widest text-dark/40 ml-1">KCSE Mean Grade</label>
-                          <input type="text" placeholder="e.g. C-" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-medium text-sm md:text-base" required />
+                          <input name="kcse_mean_grade" type="text" placeholder="e.g. C-" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-medium text-sm md:text-base" required />
                         </div>
                         <div className="space-y-2">
                           <label className="text-[10px] font-black uppercase tracking-widest text-dark/40 ml-1">KCSE Year</label>
-                          <input type="number" placeholder="2023" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-medium text-sm md:text-base" required />
+                          <input name="kcse_year" type="number" placeholder="2023" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-medium text-sm md:text-base" required />
                         </div>
                       </div>
                     </div>
@@ -959,9 +994,15 @@ export default function Home() {
                     </button>
                   )}
                   <button type="submit" className="flex-[2] bg-primary text-white py-4 md:py-5 font-display text-lg md:text-xl uppercase tracking-widest hover:bg-dark transition-all transform skew-18 block">
-                    <span className="unskew-18">{formStep === 3 ? 'Submit Application' : 'Next Step'}</span>
+                    <span className="unskew-18">{applicationStatus === "submitting" ? "Submitting..." : formStep === 3 ? 'Submit Application' : 'Next Step'}</span>
                   </button>
                 </div>
+                {applicationStatus === "success" && (
+                  <p className="m-0 text-center text-sm font-black uppercase tracking-widest text-primary">Application submitted successfully.</p>
+                )}
+                {applicationStatus === "error" && (
+                  <p className="m-0 text-center text-sm font-black uppercase tracking-widest text-red-600">Application could not be submitted. Please try again.</p>
+                )}
               </form>
             </motion.div>
           </div>

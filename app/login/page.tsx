@@ -26,7 +26,7 @@ export default function LoginPage() {
 
       if (!response.ok) throw new Error(data.error || "Login failed");
 
-      router.push(data.redirectTo || "/portal/admin");
+      router.push(data.redirectTo || "/portal");
       router.refresh();
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : "Login failed");
@@ -44,12 +44,12 @@ export default function LoginPage() {
             <img src="/logo/rhti-logo.png" alt="RHTI" className="h-20 w-auto bg-white p-2" />
           </div>
           <div className="relative z-10 max-w-xl">
-            <p className="mb-4 text-primary font-black uppercase tracking-[0.3em]">Institution Portal</p>
+            <p className="mb-4 text-primary font-black uppercase tracking-[0.3em]">Secure Login</p>
             <h1 className="text-6xl font-black leading-none text-white">
-              Manage Admissions to Graduation
+              Radiant Hospital Training Institute
             </h1>
             <p className="mt-6 text-white/70">
-              Secure access for administrators, trainers, finance, registrar teams, and students.
+              Sign in with your RHTI credentials to access the student or administrator portal.
             </p>
           </div>
         </section>
@@ -64,8 +64,8 @@ export default function LoginPage() {
                 <ShieldCheck size={24} />
               </div>
               <div>
-                <h1 className="m-0 text-3xl font-black leading-none text-dark">Portal Login</h1>
-                <p className="m-0 text-xs font-bold uppercase tracking-widest text-dark/40">RHTI IMS</p>
+                <h1 className="m-0 text-3xl font-black leading-none text-dark">Login</h1>
+                <p className="m-0 text-xs font-bold uppercase tracking-widest text-dark/40">RHTI</p>
               </div>
             </div>
 
@@ -107,10 +107,7 @@ export default function LoginPage() {
               {loading ? "Signing in..." : "Sign In"}
             </button>
 
-            <div className="mt-6 space-y-2 text-xs text-dark/50">
-              <p className="m-0"><strong>Admin:</strong> admin@rhti.local / Admin@RHTI2026</p>
-              <p className="m-0"><strong>Student:</strong> student@rhti.local / Student@RHTI2026</p>
-            </div>
+            <p className="mt-6 text-xs text-dark/50">Successful login opens the portal for your assigned role.</p>
           </form>
         </section>
       </div>

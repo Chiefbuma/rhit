@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   const session = await createSession(user.id);
   const response = NextResponse.json({
     ok: true,
-    redirectTo: user.roles.includes("student") ? "/portal/student" : "/portal/admin",
+    redirectTo: "/portal",
   });
 
   response.cookies.set(SESSION_COOKIE, session.token, {
