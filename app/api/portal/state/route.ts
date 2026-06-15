@@ -1,9 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
-import { getInitialState } from "@/components/school-portal/mockData";
 import { getCurrentUser } from "@/lib/auth";
 
 const STATE_KEY = "school_portal";
+
+const getInitialState = () => ({
+  users: [],
+  programs: [],
+  courses: [],
+  modules: [],
+  cohorts: [],
+  classes: [],
+  lecturers: [],
+  moduleLecturers: [],
+  rooms: [],
+  applicants: [],
+  acceptances: [],
+  onboardings: [],
+  courseFees: [],
+  invoices: [],
+  payments: [],
+  hostelBookings: [],
+  studentAssignments: [],
+  learningMaterials: [],
+  medicalAttachments: [],
+  exams: [],
+  examResults: [],
+  departmentClearances: [],
+  graduations: [],
+});
 
 export async function GET() {
   await query(
