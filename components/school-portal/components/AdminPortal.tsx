@@ -22,7 +22,8 @@ import {
   Eye, 
   Settings,
   BriefcaseMedical,
-  CheckCircle2
+  CheckCircle2,
+  LogOut
 } from 'lucide-react';
 import { 
   Applicant, 
@@ -50,6 +51,15 @@ import {
 } from '../types';
 import { DataTable, Column } from './DataTable';
 import { Modal } from './Modal';
+
+type AdminTab = 'home' | 'registration' | 'academics' | 'finance' | 'students' | 'graduation' | 'resources' | 'grading' | 'users' | 'inquiries';
+type GradeRule = {
+  grade: string;
+  min: number;
+  max: number;
+  status: 'Pass' | 'Fail';
+  honour: Graduation['graduationClass'];
+};
 
 // Simplified premium chart using pure SVG to keep the code extremely elegant and secure
 function StudentEnrollmentChart() {
@@ -134,11 +144,12 @@ interface AdminPortalProps {
   
   // State Mutators
   setAppState: React.Dispatch<React.SetStateAction<any>>;
+  onLogout?: () => void;
 }
 
-export function AdminPortal({ state, setAppState }: AdminPortalProps) {
+export function AdminPortal({ state, setAppState, onLogout }: AdminPortalProps) {
   // Tabs & Sub-tabs layout state
-  const [activeTab, setActiveTab] = useState<'home' | 'registration' | 'academics' | 'finance' | 'students' | 'graduation' | 'resources'>('home');
+  const [activeTab, setActiveTab] = useState<AdminTab>('home');
   const [subTabs, setSubTabs] = useState<Record<string, string>>({
     registration: 'applications',
     academics: 'programs',
@@ -166,6 +177,18 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
   const [modalType, setModalType] = useState<string>(''); // e.g. "add_applicant", "edit_applicant", "add_program", etc.
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({});
+  const [generatedPassword, setGeneratedPassword] = useState<{ username: string; password: string } | null>(null);
+  const [adminInquiries, setAdminInquiries] = useState([
+    { id: 'ENQ-901', student: 'Mercy Wanjiku', subject: 'Accommodation', message: 'I reserved accommodation but need key collection guidance.', status: 'Open' },
+    { id: 'ENQ-812', student: 'David Mwangi', subject: 'Fees', message: 'Payment receipt is visible but balance still shows pending.', status: 'Open' }
+  ]);
+  const [gradeRules, setGradeRules] = useState<GradeRule[]>([
+    { grade: 'A', min: 80, max: 101, status: 'Pass', honour: 'First Class' },
+    { grade: 'B', min: 70, max: 80, status: 'Pass', honour: 'Second Class Upper' },
+    { grade: 'C', min: 50, max: 70, status: 'Pass', honour: 'Second Class Lower' },
+    { grade: 'D', min: 40, max: 50, status: 'Pass', honour: 'Pass' },
+    { grade: 'E', min: 0, max: 40, status: 'Fail', honour: 'Fail' }
+  ]);
 
   const handleOpenAddModal = (type: string, title: string, initialFields = {}) => {
     setFormData(initialFields);
@@ -194,31 +217,51 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
 
   const getExamType = (examId?: string) => state.exams.find((exam) => exam.id === examId)?.examType || 'Final Exam';
 
+  const ruleForMarks = (marks: number) =>
+    gradeRules.find((rule) => marks >= rule.min && marks < rule.max) || gradeRules[gradeRules.length - 1];
+
   const gradeFromMarks = (marks: number, examType = 'Final Exam') => {
     if (examType === 'CAT') return 'Recorded';
-    if (marks >= 80) return 'A';
-    if (marks >= 70) return 'B';
-    if (marks >= 60) return 'C';
-    if (marks >= 50) return 'D';
-    return 'E';
+    return ruleForMarks(marks).grade;
+  };
+
+  const statusFromMarks = (marks: number, examType = 'Final Exam'): ExamResult['status'] => {
+    if (examType === 'CAT') return 'Recorded';
+    return ruleForMarks(marks).status;
   };
 
   const graduationClassFromGrade = (grade: string): Graduation['graduationClass'] => {
-    if (grade === 'A') return 'First Class';
-    if (grade === 'B') return 'Second Class Upper';
-    if (grade === 'C') return 'Second Class Lower';
-    if (grade === 'D') return 'Pass';
-    return 'Fail';
+    return gradeRules.find((rule) => rule.grade === grade)?.honour || 'Fail';
   };
 
   // General Delete handler
   const handleDeleteRow = (listKey: string, idField: string, idValue: string, message: string) => {
     if (!window.confirm(`Are you sure you want to delete this record?`)) return;
+    setAppState((prev: any) => {
+      if (!Array.isArray(prev[listKey])) {
+        triggerToast('Action failed. The selected table could not be updated.', 'error');
+        return prev;
+      }
+      return {
+        ...prev,
+        [listKey]: (prev[listKey] as any[]).filter((item: any) => item[idField] !== idValue)
+      };
+    });
+    triggerToast(message, 'success');
+  };
+
+  const resetUserPassword = (user: User) => {
+    const tempPassword = `RHTI-${Math.floor(100000 + Math.random() * 900000)}`;
     setAppState((prev: any) => ({
       ...prev,
-      [listKey]: (prev[listKey] as any[]).filter((item: any) => item[idField] !== idValue)
+      users: prev.users.map((item: User) =>
+        item.id === user.id
+          ? { ...item, passwordHash: tempPassword, forcePasswordReset: item.role === 'student' }
+          : item
+      )
     }));
-    triggerToast(message, 'success');
+    setGeneratedPassword({ username: user.username, password: tempPassword });
+    triggerToast('Temporary password generated. Share it securely and ask the user to change it on first login.');
   };
 
   // Dynamic status triggers
@@ -260,6 +303,11 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
 
   // Complete Send Acceptance triggers
   const sendAcceptanceLetter = (accId: string) => {
+    const acceptance = state.acceptances.find((acc) => acc.id === accId);
+    if (!acceptance?.signedAcceptanceLetterUrl) {
+      triggerToast('Upload the signed acceptance letter PDF before sending the acceptance.', 'error');
+      return;
+    }
     setAppState((prev: any) => ({
       ...prev,
       acceptances: prev.acceptances.map((acc: Acceptance) => 
@@ -283,6 +331,11 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
 
   // Complete student interactive onboarding trigger
   const processOnboarding = (acceptance: Acceptance) => {
+    if (acceptance.status !== 'sent' || !acceptance.signedAcceptanceLetterUrl) {
+      triggerToast('Onboarding requires a sent acceptance with the signed acceptance letter attached.', 'error');
+      return;
+    }
+
     const programObj = state.programs.find(p => p.code === acceptance.programCode);
     const initials = programObj?.initials || 'GEN';
     const year = new Date().getFullYear();
@@ -291,7 +344,7 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
 
     // Default Cohort finding or auto-generation
     const defaultCohort = state.cohorts.find(c => c.programCode === acceptance.programCode)?.name || `${initials}-01`;
-    // Class is treated as the cohort for this short-course implementation.
+    // Class is treated as the cohort for this short-module implementation.
     const defaultClass = defaultCohort;
 
     const newStudentId = 'STU_' + Math.floor(Math.random() * 10000);
@@ -481,34 +534,12 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
       }
     }
 
-    else if (modalType === 'add_course' || modalType === 'edit_course') {
-      if (modalType === 'add_course') {
-        const item: Course = {
-          code: formData.code.toUpperCase(),
-          name: formData.name,
-          programCode: formData.programCode || 'CNA',
-          credits: 0
-        };
-        setAppState((prev: any) => ({ ...prev, courses: [...prev.courses, item] }));
-        triggerToast('Module group assigned to program!');
-      } else {
-        setAppState((prev: any) => ({
-          ...prev,
-          courses: prev.courses.map((c: Course) => c.code === selectedItemId ? { ...c, ...formData } : c)
-        }));
-        triggerToast('Module group definition updated!');
-      }
-    }
-
     else if (modalType === 'add_module' || modalType === 'edit_module') {
       if (modalType === 'add_module') {
         const item: Module = {
           code: formData.code.toUpperCase(),
           name: formData.name,
-          courseCode: formData.programCode || 'CNA',
-          programCode: formData.programCode || 'CNA',
-          semester: 1,
-          credits: 0
+          programCode: formData.programCode || 'CNA'
         };
         setAppState((prev: any) => ({ ...prev, modules: [...prev.modules, item] }));
         triggerToast('Module mapped under curriculum tree!');
@@ -527,6 +558,7 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
           name: formData.name,
           cohortName: formData.cohortName || 'CNA-01',
           programCode: formData.programCode || 'CNA',
+          moduleCode: formData.moduleCode || modulesForProgram(formData.programCode || 'CNA')[0]?.code,
           roomNumber: formData.roomNumber || 'Room-102',
           scheduleTime: formData.scheduleTime || '09:00 AM - 12:00 PM',
           scheduleDays: typeof formData.scheduleDays === 'string' ? formData.scheduleDays.split(',') : ['Monday', 'Wednesday'],
@@ -535,9 +567,15 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
         setAppState((prev: any) => ({ ...prev, classes: [...prev.classes, item] }));
         triggerToast('Lecturer classroom schedule created!');
       } else {
+        const updatedClass: Class = {
+          ...formData,
+          moduleCode: formData.moduleCode || modulesForProgram(formData.programCode)[0]?.code,
+          scheduleDays: typeof formData.scheduleDays === 'string' ? formData.scheduleDays.split(',') : (formData.scheduleDays || []),
+          capacity: Number(formData.capacity) || 30
+        };
         setAppState((prev: any) => ({
           ...prev,
-          classes: prev.classes.map((c: Class) => c.name === selectedItemId ? { ...c, ...formData } : c)
+          classes: prev.classes.map((c: Class) => c.name === selectedItemId ? updatedClass : c)
         }));
         triggerToast('Classroom timetable schedule modified.');
       }
@@ -576,7 +614,11 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
           employeeId: `RHIT-L${state.lecturers.length + 1}`,
           specialization: formData.specialization || 'Clinical Instructor',
           email: formData.email || '',
-          assignedModuleCodes: typeof formData.assignedModuleCodes === 'string' ? formData.assignedModuleCodes.split(',') : []
+          assignedModuleCodes: Array.isArray(formData.assignedModuleCodes)
+            ? formData.assignedModuleCodes
+            : typeof formData.assignedModuleCodes === 'string'
+              ? formData.assignedModuleCodes.split(',').map((code: string) => code.trim()).filter(Boolean)
+              : []
         };
         setAppState((prev: any) => ({ ...prev, lecturers: [...prev.lecturers, item] }));
         triggerToast('Lecturer Profile Initiated.');
@@ -617,9 +659,12 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
     else if (modalType === 'add_result' || modalType === 'edit_result') {
       // Auto Grade calculation from marks
       const marks = Number(formData.marks) || 0;
-      const examType = getExamType(formData.examId);
-      const grade = gradeFromMarks(marks, examType);
-      const statusVal = marks >= 50 ? 'Pass' : 'Fail';
+      const examObj = state.exams.find((exam) => exam.id === formData.examId);
+      const examType = examObj?.examType || getExamType(formData.examId);
+      const totalMarks = Number(examObj?.totalMarks || 100);
+      const normalizedMarks = totalMarks > 0 ? (marks / totalMarks) * 100 : marks;
+      const grade = gradeFromMarks(normalizedMarks, examType);
+      const statusVal = statusFromMarks(normalizedMarks, examType);
 
       if (modalType === 'add_result') {
         const studentObj = state.onboardings.find(o => o.id === formData.studentId);
@@ -632,7 +677,7 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
           examId: formData.examId || '',
           marks,
           grade,
-          comments: formData.comments || 'Evaluated standard coursework.',
+          comments: formData.comments || 'Evaluated standard modulework.',
           status: statusVal
         };
         setAppState((prev: any) => ({ ...prev, examResults: [...prev.examResults, item] }));
@@ -646,11 +691,22 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
       }
     }
 
+    else if (modalType === 'edit_grade_rules') {
+      const nextRules: GradeRule[] = [
+        { grade: 'A', min: Number(formData.aMin) || 80, max: 101, status: 'Pass', honour: 'First Class' },
+        { grade: 'B', min: Number(formData.bMin) || 70, max: Number(formData.aMin) || 80, status: 'Pass', honour: 'Second Class Upper' },
+        { grade: 'C', min: Number(formData.cMin) || 50, max: Number(formData.bMin) || 70, status: 'Pass', honour: 'Second Class Lower' },
+        { grade: 'D', min: Number(formData.dMin) || 40, max: Number(formData.cMin) || 50, status: 'Pass', honour: 'Pass' },
+        { grade: 'E', min: 0, max: Number(formData.dMin) || 40, status: 'Fail', honour: 'Fail' }
+      ];
+      setGradeRules(nextRules);
+      triggerToast('Final exam grading and graduation honour rules updated.');
+    }
+
     else if (modalType === 'add_fee_structure') {
       const item: CourseFee = {
         id: 'CF_' + Math.floor(Math.random() * 10000),
         programCode: formData.programCode || 'CNA',
-        courseCode: formData.programCode || 'PROGRAM',
         feeAmount: Number(formData.feeAmount) || 20000,
         academicYear: formData.academicYear || '2026'
       };
@@ -687,7 +743,7 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
           capacity: Number(formData.capacity) || 40,
           status: 'available',
           facilities: typeof formData.facilities === 'string' ? formData.facilities.split(',') : ['Smart Board'],
-          hostelFee: formData.type === 'hostel' ? Number(formData.hostelFee) || 12000 : undefined
+          hostelFee: formData.type === 'hostel' ? Number(formData.hostelFee) || 3000 : undefined
         };
         setAppState((prev: any) => ({ ...prev, rooms: [...prev.rooms, item] }));
         triggerToast('New Property Resource Registered!');
@@ -698,6 +754,45 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
         }));
         triggerToast('Property resource modified.');
       }
+    }
+
+    else if (modalType === 'approve_hostel_booking') {
+      if (!formData.transactionCode || !formData.bankTransactionCode) {
+        triggerToast('Approval failed. Transaction code and bank transaction code are required.', 'error');
+        return;
+      }
+      approveHostelBooking(selectedItemId || formData.id, formData.transactionCode, formData.bankTransactionCode);
+    }
+
+    else if (modalType === 'add_material') {
+      const item: LearningMaterial = {
+        id: 'MAT_' + Math.floor(Math.random() * 10000),
+        title: formData.title || 'Study Material',
+        moduleCode: formData.moduleCode || state.modules[0]?.code || '',
+        materialType: formData.materialType || 'PDF',
+        uploadedBy: formData.uploadedBy || 'Admin',
+        uploadDate: new Date().toISOString().split('T')[0],
+        fileUrl: formData.fileUrl || '#'
+      };
+      setAppState((prev: any) => ({ ...prev, learningMaterials: [item, ...prev.learningMaterials] }));
+      triggerToast('Study material assigned successfully.');
+    }
+
+    else if (modalType === 'add_rotation') {
+      const studentObj = state.onboardings.find((o) => o.id === formData.studentId);
+      const item: MedicalAttachment = {
+        id: 'ROT_' + Math.floor(Math.random() * 10000),
+        studentId: formData.studentId || '',
+        studentName: studentObj?.studentName || '',
+        studentRegNumber: studentObj?.registrationNumber || '',
+        facilityName: formData.facilityName || '',
+        startDate: formData.startDate || new Date().toISOString().split('T')[0],
+        endDate: formData.endDate || new Date().toISOString().split('T')[0],
+        supervisor: formData.supervisor || '',
+        status: formData.status || 'pending'
+      };
+      setAppState((prev: any) => ({ ...prev, medicalAttachments: [item, ...prev.medicalAttachments] }));
+      triggerToast('Medical rotation assigned successfully.');
     }
 
     else if (modalType === 'add_assignment' || modalType === 'edit_assignment') {
@@ -825,52 +920,27 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
             initial={{ opacity: 0, y: -20, x: '-50%' }}
             animate={{ opacity: 1, y: 0, x: '-50%' }}
             exit={{ opacity: 0, y: -20, x: '-50%' }}
-            className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-[#2C3E50] text-[#FFFFFF] px-6 py-3 border border-[#34495E] shadow-xl flex items-center space-x-3 text-xs font-bold rounded"
+            className={`fixed top-5 right-5 z-50 min-w-[280px] max-w-md rounded-lg border bg-white px-4 py-3 text-xs font-bold shadow-2xl flex items-start gap-3 ${
+              toast.type === 'success' ? 'border-emerald-200 text-emerald-900' : 'border-rose-200 text-rose-900'
+            }`}
           >
-            {toast.type === 'success' ? <CheckCircle2 className="h-4 w-4 text-[#2ECC71]" /> : <AlertCircle className="h-4 w-4 text-[#E74C3C]" />}
-            <span>{toast.message}</span>
+            {toast.type === 'success' ? <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" /> : <AlertCircle className="h-5 w-5 text-rose-600 shrink-0" />}
+            <span className="leading-relaxed">{toast.message}</span>
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* CENTRAL PLATFORM WRAPPER PAGE */}
-      <div className="max-w-7xl mx-auto bg-white border border-[#BDC3C7] shadow-xl rounded-md overflow-hidden flex flex-col p-4 md:p-8 space-y-4">
+      <div className="school-portal-shell max-w-7xl mx-auto bg-white border border-[#BDC3C7] shadow-xl rounded-md overflow-hidden flex flex-col p-4 md:p-8 space-y-4">
         
-        {/* LOGO & HEADING SECTION - AS SEEN IN THE UON INTEGRATED SCREENSHOT */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-zinc-200 pb-5">
-          <div className="flex flex-col sm:flex-row items-center gap-4">
+        {/* LOGO & HEADING SECTION - RHTI portal header */}
+        <div className="flex items-center justify-start border-b border-zinc-200 pb-3">
+          <div className="flex items-center justify-start">
             <img 
               src="/logo/rhti-logo.png" 
               alt="Radiant Hospital Training Institute Logo" 
-              className="h-20 object-contain"
+              className="h-14 object-contain"
             />
-            <div className="text-center sm:text-left space-y-1">
-              <h1 className="font-serif font-bold text-2xl md:text-3xl text-zinc-900 tracking-tight leading-none">
-                Radiant Hospital Training Institute
-              </h1>
-              <p className="text-xs italic text-zinc-500 font-medium font-serif leading-tight">
-                SMIS Administrator Core Console
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-                <button
-                  onClick={() => handleOpenAddModal('add_applicant', 'Create Direct Student Application', { name: '', email: '', programApplied: 'CNA', kcseGrade: 'B+' })}
-              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold uppercase rounded transition shadow-xs"
-            >
-              + Direct Applicant
-            </button>
-            <div className="w-px h-6 bg-slate-300"></div>
-            <button 
-              onClick={() => {
-                window.location.reload();
-              }}
-              className="bg-[#E74C3C] hover:bg-[#C0392B] text-white px-3.5 py-2 rounded text-xs uppercase font-bold transition shadow-xs"
-              title="Logout session"
-            >
-              Sign out
-            </button>
           </div>
         </div>
 
@@ -883,7 +953,10 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
             { id: 'finance', label: 'Finance & Ledgers' },
             { id: 'students', label: 'Student Portals' },
             { id: 'graduation', label: 'Graduation Audits' },
+            { id: 'grading', label: 'Grading Rules' },
             { id: 'resources', label: 'Resources Panel' },
+            { id: 'users', label: 'Users' },
+            { id: 'inquiries', label: 'Inquiries' },
           ].map((tab) => {
             const isSelected = activeTab === tab.id;
             return (
@@ -892,72 +965,92 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`px-4 py-2 text-xs font-bold uppercase transition-all whitespace-nowrap outline-none ${
                   isSelected 
-                    ? 'bg-[#9ACCE6] text-black border-t border-x border-[#7E8B92] rounded-t' 
-                    : 'bg-[#7E8B92] hover:bg-[#6D7879] text-white rounded-t border-t border-x border-transparent'
+                    ? 'bg-primary text-white border-t border-x border-primary rounded-t' 
+                    : 'bg-dark/85 hover:bg-primary text-white rounded-t border-t border-x border-transparent'
                 }`}
               >
                 {tab.label}
               </button>
             );
           })}
+          <button
+            onClick={onLogout || (() => { window.location.href = '/login'; })}
+            className="ml-auto px-2.5 py-1 text-[10px] font-bold uppercase transition-all whitespace-nowrap outline-none bg-[#E74C3C] hover:bg-[#C0392B] text-white rounded-t border-t border-x border-transparent flex items-center gap-1"
+            title="Logout session"
+          >
+            <LogOut className="h-3 w-3" />
+            Logout
+          </button>
         </div>
 
         {/* SUB-TAB NAVIGATIONAL BAR STRIP - MATCHES BLUE ACCENTS FROM THE SCREENSHOT */}
-        <div className="bg-[#9ACCE6] border-b border-[#7E8B92] px-4 py-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-xs text-slate-900 font-medium select-none shadow-sm rounded-b">
+        <div className="bg-primary/10 border-b border-primary/30 px-4 py-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-xs text-slate-900 font-medium select-none shadow-sm rounded-b">
           
           {activeTab === 'home' && (
-            <span className="font-bold text-dark underline underline-offset-2">• Operations Overview</span>
+            <span className="font-bold text-primary underline underline-offset-2">• Operations Overview</span>
           )}
 
           {activeTab === 'registration' && (
             <>
-              <span className={`cursor-pointer ${getSubTab('registration') === 'applications' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setSubTab('registration', 'applications')}>• Applications Inbox</span>
-              <span className={`cursor-pointer ${getSubTab('registration') === 'acceptances' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setSubTab('registration', 'acceptances')}>• Acceptances Register</span>
-              <span className={`cursor-pointer ${getSubTab('registration') === 'onboardings' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setSubTab('registration', 'onboardings')}>• Clinical Onboarding file</span>
+              <span className={`cursor-pointer ${getSubTab('registration') === 'applications' ? 'font-bold text-primary underline underline-offset-2' : 'hover:underline text-primary'}`} onClick={() => setSubTab('registration', 'applications')}>• Applications Inbox</span>
+              <span className={`cursor-pointer ${getSubTab('registration') === 'acceptances' ? 'font-bold text-primary underline underline-offset-2' : 'hover:underline text-primary'}`} onClick={() => setSubTab('registration', 'acceptances')}>• Acceptances Register</span>
+              <span className={`cursor-pointer ${getSubTab('registration') === 'onboardings' ? 'font-bold text-primary underline underline-offset-2' : 'hover:underline text-primary'}`} onClick={() => setSubTab('registration', 'onboardings')}>• Clinical Onboarding file</span>
             </>
           )}
 
           {activeTab === 'academics' && (
             <>
-              <span className={`cursor-pointer ${getSubTab('academics') === 'programs' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setSubTab('academics', 'programs')}>• Programs</span>
-              <span className={`cursor-pointer ${getSubTab('academics') === 'courses' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setSubTab('academics', 'courses')}>• Module Groups</span>
-              <span className={`cursor-pointer ${getSubTab('academics') === 'modules' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setSubTab('academics', 'modules')}>• Modules</span>
-              <span className={`cursor-pointer ${getSubTab('academics') === 'classes' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setSubTab('academics', 'classes')}>• Classes Timetables</span>
-              <span className={`cursor-pointer ${getSubTab('academics') === 'cohorts' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setSubTab('academics', 'cohorts')}>• Cohorts</span>
-              <span className={`cursor-pointer ${getSubTab('academics') === 'lecturers' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setSubTab('academics', 'lecturers')}>• Lecturers</span>
-              <span className={`cursor-pointer ${getSubTab('academics') === 'exams' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setSubTab('academics', 'exams')}>• Exams schedules</span>
-              <span className={`cursor-pointer ${getSubTab('academics') === 'results' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setSubTab('academics', 'results')}>• Published Results</span>
+              <span className={`cursor-pointer ${getSubTab('academics') === 'programs' ? 'font-bold text-primary underline underline-offset-2' : 'hover:underline text-primary'}`} onClick={() => setSubTab('academics', 'programs')}>• Programs</span>
+              <span className={`cursor-pointer ${getSubTab('academics') === 'modules' ? 'font-bold text-primary underline underline-offset-2' : 'hover:underline text-primary'}`} onClick={() => setSubTab('academics', 'modules')}>• Modules</span>
+              <span className={`cursor-pointer ${getSubTab('academics') === 'classes' ? 'font-bold text-primary underline underline-offset-2' : 'hover:underline text-primary'}`} onClick={() => setSubTab('academics', 'classes')}>• Module Timetables</span>
+              <span className={`cursor-pointer ${getSubTab('academics') === 'cohorts' ? 'font-bold text-primary underline underline-offset-2' : 'hover:underline text-primary'}`} onClick={() => setSubTab('academics', 'cohorts')}>• Cohorts</span>
+              <span className={`cursor-pointer ${getSubTab('academics') === 'lecturers' ? 'font-bold text-primary underline underline-offset-2' : 'hover:underline text-primary'}`} onClick={() => setSubTab('academics', 'lecturers')}>• Lecturers</span>
+              <span className={`cursor-pointer ${getSubTab('academics') === 'exams' ? 'font-bold text-primary underline underline-offset-2' : 'hover:underline text-primary'}`} onClick={() => setSubTab('academics', 'exams')}>• Exams schedules</span>
+              <span className={`cursor-pointer ${getSubTab('academics') === 'results' ? 'font-bold text-primary underline underline-offset-2' : 'hover:underline text-primary'}`} onClick={() => setSubTab('academics', 'results')}>• Published Results</span>
             </>
           )}
 
           {activeTab === 'finance' && (
             <>
-              <span className={`cursor-pointer ${getSubTab('finance') === 'fees' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setSubTab('finance', 'fees')}>• Tuition fee structures</span>
-              <span className={`cursor-pointer ${getSubTab('finance') === 'invoices' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setSubTab('finance', 'invoices')}>• Invoice records</span>
-              <span className={`cursor-pointer ${getSubTab('finance') === 'payments' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setSubTab('finance', 'payments')}>• Payment Ledgers</span>
+              <span className={`cursor-pointer ${getSubTab('finance') === 'fees' ? 'font-bold text-primary underline underline-offset-2' : 'hover:underline text-primary'}`} onClick={() => setSubTab('finance', 'fees')}>• Tuition fee structures</span>
+              <span className={`cursor-pointer ${getSubTab('finance') === 'invoices' ? 'font-bold text-primary underline underline-offset-2' : 'hover:underline text-primary'}`} onClick={() => setSubTab('finance', 'invoices')}>• Invoice records</span>
+              <span className={`cursor-pointer ${getSubTab('finance') === 'payments' ? 'font-bold text-primary underline underline-offset-2' : 'hover:underline text-primary'}`} onClick={() => setSubTab('finance', 'payments')}>• Payment Ledgers</span>
             </>
           )}
 
           {activeTab === 'students' && (
             <>
-              <span className={`cursor-pointer ${getSubTab('students') === 'id-management' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setSubTab('students', 'id-management')}>• Student ID badge management</span>
-              <span className={`cursor-pointer ${getSubTab('students') === 'course-assignments' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setSubTab('students', 'course-assignments')}>• Assigned units</span>
+              <span className={`cursor-pointer ${getSubTab('students') === 'id-management' ? 'font-bold text-primary underline underline-offset-2' : 'hover:underline text-primary'}`} onClick={() => setSubTab('students', 'id-management')}>• Student ID badge management</span>
+              <span className={`cursor-pointer ${getSubTab('students') === 'module-assignments' ? 'font-bold text-primary underline underline-offset-2' : 'hover:underline text-primary'}`} onClick={() => setSubTab('students', 'module-assignments')}>• Assigned units</span>
             </>
           )}
 
           {activeTab === 'graduation' && (
             <>
-              <span className={`cursor-pointer ${getSubTab('graduation') === 'clearance' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setSubTab('graduation', 'clearance')}>• Clearance office desks</span>
-              <span className={`cursor-pointer ${getSubTab('graduation') === 'graduations' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setSubTab('graduation', 'graduations')}>• Graduation candidate lists</span>
+              <span className={`cursor-pointer ${getSubTab('graduation') === 'clearance' ? 'font-bold text-primary underline underline-offset-2' : 'hover:underline text-primary'}`} onClick={() => setSubTab('graduation', 'clearance')}>• Clearance office desks</span>
+              <span className={`cursor-pointer ${getSubTab('graduation') === 'graduations' ? 'font-bold text-primary underline underline-offset-2' : 'hover:underline text-primary'}`} onClick={() => setSubTab('graduation', 'graduations')}>• Graduation candidate lists</span>
             </>
+          )}
+
+          {activeTab === 'grading' && (
+            <span className="font-bold text-primary underline underline-offset-2">• Final Exam Grades & Graduation Honours</span>
           )}
 
           {activeTab === 'resources' && (
             <>
-              <span className={`cursor-pointer ${getSubTab('resources') === 'rooms' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setSubTab('resources', 'rooms')}>• Hostel Room slots</span>
-              <span className={`cursor-pointer ${getSubTab('resources') === 'materials' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setSubTab('resources', 'materials')}>• Study materials</span>
-              <span className={`cursor-pointer ${getSubTab('resources') === 'medical-attachments' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setSubTab('resources', 'medical-attachments')}>• Medical Clinical rotations</span>
+              <span className={`cursor-pointer ${getSubTab('resources') === 'rooms' ? 'font-bold text-primary underline underline-offset-2' : 'hover:underline text-primary'}`} onClick={() => setSubTab('resources', 'rooms')}>• Create Rooms</span>
+              <span className={`cursor-pointer ${getSubTab('resources') === 'room-approvals' ? 'font-bold text-primary underline underline-offset-2' : 'hover:underline text-primary'}`} onClick={() => setSubTab('resources', 'room-approvals')}>• Room Approvals</span>
+              <span className={`cursor-pointer ${getSubTab('resources') === 'materials' ? 'font-bold text-primary underline underline-offset-2' : 'hover:underline text-primary'}`} onClick={() => setSubTab('resources', 'materials')}>• Study materials</span>
+              <span className={`cursor-pointer ${getSubTab('resources') === 'medical-attachments' ? 'font-bold text-primary underline underline-offset-2' : 'hover:underline text-primary'}`} onClick={() => setSubTab('resources', 'medical-attachments')}>• Medical Clinical rotations</span>
             </>
+          )}
+
+          {activeTab === 'users' && (
+            <span className="font-bold text-primary underline underline-offset-2">• User Accounts & Password Reset</span>
+          )}
+
+          {activeTab === 'inquiries' && (
+            <span className="font-bold text-primary underline underline-offset-2">• Student Inquiries Response Desk</span>
           )}
 
         </div>
@@ -974,59 +1067,107 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
           <div className="w-full">
         {activeTab === 'home' && (
           <div className="space-y-6">
-            {/* Quick Actions Panel */}
             <div className="bg-white border border-zinc-200 rounded-xl p-6 shadow-sm">
-              <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-4">Immediate Admin Operations</h4>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  onClick={() => handleOpenAddModal('add_applicant', 'Create Direct Student Application', { name: '', email: '', programApplied: 'CNA', kcseGrade: 'B-' })}
-                  className="bg-primary hover:bg-primary text-white px-4 py-2 rounded-xl text-xs font-semibold flex items-center space-x-2 shadow-sm transition"
-                >
-                  <Plus className="h-4 w-4" />
-                  <span>Register Direct Applicant Entry</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setActiveTab('registration');
-                    setSubTab('registration', 'acceptances');
-                  }}
-                  className="py-2 px-4 border border-zinc-200 rounded-xl text-xs font-semibold hover:bg-zinc-50 text-zinc-700 transition"
-                >
-                  Initiate Acceptance Letters
-                </button>
-                <button
-                  onClick={triggerBulkAssignIDs}
-                  className="py-2 px-4 border border-zinc-200 rounded-xl text-xs font-semibold hover:bg-zinc-50 text-zinc-700 transition"
-                >
-                  Bulk Assign NFC ID Badges
-                </button>
-              </div>
-            </div>
+              <h3 className="text-base font-bold text-zinc-900 mb-1">Urgent Institutional Overview</h3>
+              <p className="text-xs text-zinc-500 mb-5">Operational tables for records that need administrator action.</p>
 
-            {/* Recharts / Pure SVG Premium visual charts */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <StudentEnrollmentChart />
-              <RevenueChart />
-            </div>
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <div>
+                  <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-3">Students By Program</h4>
+                  <table className="w-full border-collapse border border-zinc-300 text-xs text-left">
+                    <thead className="bg-primary text-white">
+                      <tr>
+                        <th className="border border-primary/40 p-2">Program</th>
+                        <th className="border border-primary/40 p-2">Total Students</th>
+                        <th className="border border-primary/40 p-2">Active Cohorts</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {state.programs.map((program) => (
+                        <tr key={program.code} className="hover:bg-zinc-50">
+                          <td className="border border-zinc-300 p-2 font-bold">{program.name}</td>
+                          <td className="border border-zinc-300 p-2 font-mono">{state.onboardings.filter((student) => student.programCode === program.code).length}</td>
+                          <td className="border border-zinc-300 p-2 font-mono">{state.cohorts.filter((cohort) => cohort.programCode === program.code).length}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
-            {/* Recent Activites Register */}
-            <div className="bg-white border border-zinc-200 rounded-xl p-6 shadow-sm">
-              <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-4">Campus Activity Log Roll</h4>
-              <div className="space-y-4 text-xs font-sans text-zinc-600">
-                <div className="flex items-center space-x-3">
-                  <div className="h-2 w-2 rounded-full bg-emerald-500"></div>
-                  <span>Standard Student Onboarding successfully created user Account for <strong>Mercy Wanjiku (RHIT/CNA/1001/2026)</strong></span>
-                  <span className="text-zinc-400 font-mono text-[10px] ml-auto">Jul 12, 11:32 AM</span>
+                <div>
+                  <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-3">Applications Pending Action</h4>
+                  <table className="w-full border-collapse border border-zinc-300 text-xs text-left">
+                    <thead className="bg-primary text-white">
+                      <tr>
+                        <th className="border border-primary/40 p-2">Applicant</th>
+                        <th className="border border-primary/40 p-2">Program</th>
+                        <th className="border border-primary/40 p-2">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {state.applicants.filter((applicant) => !['accepted', 'rejected'].includes(applicant.status)).slice(0, 6).map((applicant) => (
+                        <tr key={applicant.id} className="hover:bg-zinc-50">
+                          <td className="border border-zinc-300 p-2 font-bold">{applicant.name}</td>
+                          <td className="border border-zinc-300 p-2">{applicant.programApplied}</td>
+                          <td className="border border-zinc-300 p-2">
+                            <button
+                              onClick={() => {
+                                setActiveTab('registration');
+                                setSubTab('registration', 'applications');
+                              }}
+                              className="rounded bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800"
+                            >
+                              {applicant.status}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-                <div className="flex items-center space-x-3">
-                  <div className="h-2 w-2 rounded-full bg-primary"></div>
-                  <span>System automatic program tuition invoice INV/2026/001 generated for CNA modules.</span>
-                  <span className="text-zinc-400 font-mono text-[10px] ml-auto">Jul 12, 11:32 AM</span>
+
+                <div>
+                  <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-3">Acceptance Reminders</h4>
+                  <table className="w-full border-collapse border border-zinc-300 text-xs text-left">
+                    <thead className="bg-primary text-white">
+                      <tr>
+                        <th className="border border-primary/40 p-2">Applicant</th>
+                        <th className="border border-primary/40 p-2">Program</th>
+                        <th className="border border-primary/40 p-2">Required Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {state.acceptances.filter((acceptance) => acceptance.status !== 'onboarded').slice(0, 6).map((acceptance) => (
+                        <tr key={acceptance.id} className="hover:bg-zinc-50">
+                          <td className="border border-zinc-300 p-2 font-bold">{acceptance.applicantName}</td>
+                          <td className="border border-zinc-300 p-2">{acceptance.programCode}</td>
+                          <td className="border border-zinc-300 p-2">{acceptance.signedAcceptanceLetterUrl ? 'Send / onboard' : 'Upload signed letter'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-                <div className="flex items-center space-x-3">
-                  <div className="h-2 w-2 rounded-full bg-amber-500"></div>
-                  <span>Applicant file <strong>Atieno Ochola (APP003)</strong> entered registration inbox.</span>
-                  <span className="text-zinc-400 font-mono text-[10px] ml-auto">Jul 12, 09:12 AM</span>
+
+                <div>
+                  <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-3">Upcoming Exams Modulewise</h4>
+                  <table className="w-full border-collapse border border-zinc-300 text-xs text-left">
+                    <thead className="bg-primary text-white">
+                      <tr>
+                        <th className="border border-primary/40 p-2">Module</th>
+                        <th className="border border-primary/40 p-2">Exam</th>
+                        <th className="border border-primary/40 p-2">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...state.exams].sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6).map((exam) => (
+                        <tr key={exam.id} className="hover:bg-zinc-50">
+                          <td className="border border-zinc-300 p-2 font-bold">{exam.moduleCode}</td>
+                          <td className="border border-zinc-300 p-2">{exam.name}</td>
+                          <td className="border border-zinc-300 p-2 font-mono">{exam.date} {exam.time}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
@@ -1043,16 +1184,9 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
               <div className="bg-white border border-zinc-200 rounded-xl p-6 shadow-sm">
                 <div className="flex justify-between items-center mb-6">
                   <div>
-                    <h3 className="text-base font-bold text-zinc-900">Direct Student Applications Registry</h3>
+                    <h3 className="text-base font-bold text-zinc-900">Website Applications Registry</h3>
                     <p className="text-xs text-zinc-500 mt-1">Review secondary metrics and accept students into clinical portals.</p>
                   </div>
-                  <button
-                    onClick={() => handleOpenAddModal('add_applicant', 'Create Direct Student Application', { name: '', email: '', programApplied: 'CNA', kcseGrade: 'B-' })}
-                    className="bg-primary text-white rounded-xl px-4 py-2 text-xs font-semibold flex items-center space-x-2 hover:bg-primary transition"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>Create Application Ticket</span>
-                  </button>
                 </div>
 
                 <DataTable<Applicant>
@@ -1070,8 +1204,7 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
                   )}
                   columns={[
                     { header: 'Applicant Name', accessor: (a) => <span className="font-semibold text-zinc-900">{a.name}</span>, sortKey: 'name' },
-                    { header: 'Email Address', accessor: (a) => a.email, sortKey: 'email' },
-                    { header: 'Program Code', accessor: (a) => <span className="font-mono text-zinc-600">{a.programApplied}</span>, sortKey: 'programApplied' },
+                    { header: 'Program Applied For', accessor: (a) => <span className="font-semibold text-zinc-800">{state.programs.find((p) => p.code.toLowerCase() === a.programApplied.toLowerCase())?.name || a.programApplied}</span>, sortKey: 'programApplied' },
                     { header: 'KCSE Grade', accessor: (a) => <span className="font-bold text-primary">{a.kcseGrade}</span>, sortKey: 'kcseGrade' },
                     { header: 'Status Flag', accessor: (a) => (
                       <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -1283,60 +1416,13 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
               </div>
             )}
 
-            {/* Courses subtab */}
-            {getSubTab('academics') === 'courses' && (
-              <div className="bg-white border border-zinc-200 rounded-xl p-6 shadow-sm">
-                <div className="flex justify-between items-center mb-6">
-                  <div>
-                    <h3 className="text-base font-bold text-zinc-900">Programs and Modules Register</h3>
-                    <p className="text-xs text-zinc-500 mt-1">Assign curriculum groups matching program allocations.</p>
-                  </div>
-                  <button
-                    onClick={() => handleOpenAddModal('add_course', 'Add Module Group', { code: '', name: '', programCode: 'CNA', credits: '4' })}
-                    className="bg-primary text-white rounded-xl px-4 py-2 text-xs font-semibold hover:bg-primary flex items-center space-x-1"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>Assign Module Group</span>
-                  </button>
-                </div>
-
-                <DataTable<Course>
-                  data={state.courses}
-                  idKey="code"
-                  searchFilter={(item, q) => item.name.toLowerCase().includes(q) || item.code.toLowerCase().includes(q)}
-                  columns={[
-                    { header: 'Group Code', accessor: (c) => <span className="font-bold">{c.code}</span> },
-                    { header: 'Group Name', accessor: (c) => <span className="font-semibold">{c.name}</span> },
-                    { header: 'Assigned Program', accessor: (c) => c.programCode },
-                    { header: 'Program Units', accessor: (c) => `${c.credits} Units` },
-                    { header: 'Action', accessor: (c) => (
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => handleOpenEditModal('edit_course', 'Modify module group definition', c, c.code)}
-                          className="hover:text-zinc-900 text-zinc-400 transition"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteRow('courses', 'code', c.code, 'Course record removed.')}
-                          className="hover:text-rose-600 text-zinc-400 transition"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    )}
-                  ]}
-                />
-              </div>
-            )}
-
             {/* Modules subtab */}
             {getSubTab('academics') === 'modules' && (
               <div className="bg-white border border-zinc-200 rounded-xl p-6 shadow-sm">
                 <div className="flex justify-between items-center mb-6">
                   <div>
                     <h3 className="text-base font-bold text-zinc-900">Academic Curriculum Modules catalogue</h3>
-                    <p className="text-xs text-zinc-500 mt-1">Modules belong directly to a program in the Kenya short-course structure.</p>
+                    <p className="text-xs text-zinc-500 mt-1">Modules belong directly to a program in the Kenya short-module structure.</p>
                   </div>
                   <button
                     onClick={() => handleOpenAddModal('add_module', 'Add Curriculum Module', { code: '', name: '', programCode: 'CNA' })}
@@ -1399,6 +1485,7 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
                   searchFilter={(item, q) => item.name.toLowerCase().includes(q) || item.roomNumber.toLowerCase().includes(q)}
                   columns={[
                     { header: 'Timetable ID', accessor: (c) => <span className="font-bold">{c.name}</span> },
+                    { header: 'Target Module', accessor: (c) => c.moduleCode || 'Not assigned' },
                     { header: 'Assigned Cohort', accessor: (c) => c.cohortName },
                     { header: 'Residency Room', accessor: (c) => c.roomNumber },
                     { header: 'Schedule Hours', accessor: (c) => c.scheduleTime },
@@ -1534,7 +1621,7 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
                     <p className="text-xs text-zinc-500 mt-1">Initialize Final Exam, CAT, or Assignment records for a module and cohort.</p>
                   </div>
                   <button
-                    onClick={() => handleOpenAddModal('add_exam', 'Schedule Module Examination', { name: '', examType: 'Final Exam', moduleCode: 'MOD-CDA-01', cohortName: 'CDA-01', date: '2026-06-25', time: '09:00 - 12:00', venue: 'Exam Hall B', totalMarks: '100' })}
+                    onClick={() => handleOpenAddModal('add_exam', 'Schedule Module Examination', { name: '', programCode: 'CDA', examType: 'Final Exam', moduleCode: 'MOD-CDA-01', cohortName: 'CDA-01', date: '2026-06-25', time: '09:00 - 12:00', venue: 'Exam Hall B', totalMarks: '100' })}
                     className="bg-primary text-white rounded-xl px-4 py-2 text-xs font-semibold hover:bg-primary flex items-center space-x-1"
                   >
                     <Plus className="h-4 w-4" />
@@ -1804,8 +1891,8 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
               </div>
             )}
 
-            {/* CourseAssignments catalog */}
-            {getSubTab('students') === 'course-assignments' && (() => {
+            {/* Module assignments catalog */}
+            {getSubTab('students') === 'module-assignments' && (() => {
               const unifiedAssignmentsData = state.onboardings.map(o => {
                 const asg = state.studentAssignments.find(a => a.studentId === o.id);
                 if (asg) {
@@ -2054,6 +2141,52 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
           </div>
         )}
 
+        {/* GRADING RULES TAB */}
+        {activeTab === 'grading' && (
+          <div className="space-y-6">
+            <div className="bg-white border border-zinc-200 rounded-xl p-6 shadow-sm">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h3 className="text-base font-bold text-zinc-900">Final Exam Grade & Honour Definitions</h3>
+                  <p className="text-xs text-zinc-500 mt-1">Final exams and assignments produce letter grades; CATs remain absolute score records only.</p>
+                </div>
+                <button
+                  onClick={() => handleOpenAddModal('edit_grade_rules', 'Define Grade Thresholds', {
+                    aMin: gradeRules.find((rule) => rule.grade === 'A')?.min || 80,
+                    bMin: gradeRules.find((rule) => rule.grade === 'B')?.min || 70,
+                    cMin: gradeRules.find((rule) => rule.grade === 'C')?.min || 50,
+                    dMin: gradeRules.find((rule) => rule.grade === 'D')?.min || 40
+                  })}
+                  className="bg-primary text-white rounded-xl px-4 py-2 text-xs font-semibold hover:bg-primary flex items-center space-x-1"
+                >
+                  <Settings className="h-4 w-4" />
+                  <span>Edit Rules</span>
+                </button>
+              </div>
+
+              <DataTable<GradeRule>
+                data={gradeRules}
+                idKey={(rule) => rule.grade}
+                searchFilter={(rule, q) => rule.grade.toLowerCase().includes(q) || rule.honour.toLowerCase().includes(q)}
+                columns={[
+                  { header: 'Letter Grade', accessor: (rule) => <span className="font-black text-primary">{rule.grade}</span>, sortKey: 'grade' },
+                  { header: 'Score Range', accessor: (rule) => `${rule.min}-${rule.max > 100 ? 100 : rule.max}%` },
+                  { header: 'Graduation Standing', accessor: (rule) => rule.honour },
+                  { header: 'Status', accessor: (rule) => (
+                    <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${rule.status === 'Pass' ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-800'}`}>
+                      {rule.status}
+                    </span>
+                  ) }
+                ]}
+              />
+
+              <div className="mt-4 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-zinc-700">
+                CATs are recorded as absolute marks against the scheduled total, such as 20/30, and do not generate letter grades or graduation honours.
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* RESOURCES SUBTABS */}
         {activeTab === 'resources' && (
           <div className="space-y-6">
@@ -2067,7 +2200,7 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
                     <p className="text-xs text-zinc-500 mt-1">Configure campus classrooms, diagnostic computer laboratories and hostel bookings.</p>
                   </div>
                   <button
-                    onClick={() => handleOpenAddModal('add_room', 'Configure Campus Room', { roomNumber: '', type: 'classroom', capacity: '40', facilities: 'Smart Board, Projector', hostelFee: '12000' })}
+                    onClick={() => handleOpenAddModal('add_room', 'Configure Campus Room', { roomNumber: '', type: 'classroom', capacity: '40', facilities: 'Smart Board, Projector', hostelFee: '3000' })}
                     className="bg-primary text-white rounded-xl px-4 py-2 text-xs font-semibold hover:bg-primary flex items-center space-x-1"
                   >
                     <Plus className="h-4 w-4" />
@@ -2091,7 +2224,7 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
                         ))}
                       </div>
                     ) },
-                    { header: 'Hostel Fee /Term', accessor: (r) => r.hostelFee ? `Kes ${r.hostelFee.toLocaleString()}` : <span className="text-zinc-400 font-mono italic">Not Hostel</span> },
+                    { header: 'Hostel Approval Fee', accessor: (r) => r.hostelFee ? `Kes 3,000` : <span className="text-zinc-400 font-mono italic">Not Hostel</span> },
                     { header: 'Action', accessor: (r) => (
                       <button
                         onClick={() => handleDeleteRow('rooms', 'roomNumber', r.roomNumber, 'Campus property room deleted.')}
@@ -2105,12 +2238,56 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
               </div>
             )}
 
+            {getSubTab('resources') === 'room-approvals' && (
+              <div className="bg-white border border-zinc-200 rounded-xl p-6 shadow-sm">
+                <div className="mb-6">
+                  <h3 className="text-base font-bold text-zinc-900">Student Hostel Room Applications</h3>
+                  <p className="text-xs text-zinc-500 mt-1">Approve student room applications after confirming the required KSh 3,000 payment proof.</p>
+                </div>
+
+                <DataTable<any>
+                  data={state.hostelBookings || []}
+                  idKey="id"
+                  searchFilter={(item, q) => item.studentRegNumber?.toLowerCase().includes(q) || item.roomNumber?.toLowerCase().includes(q)}
+                  emptyMessage="No room applications are waiting for approval."
+                  columns={[
+                    { header: 'Reg Number', accessor: (b) => <span className="font-mono text-xs font-semibold">{b.studentRegNumber}</span> },
+                    { header: 'Room Applied', accessor: (b) => <span className="font-bold">{b.roomNumber}</span> },
+                    { header: 'Application Date', accessor: (b) => b.bookingDate },
+                    { header: 'Payment', accessor: (b) => <span className="font-semibold">Kes {(b.amount || 3000).toLocaleString()}</span> },
+                    { header: 'Status', accessor: (b) => (
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${b.status === 'approved' || b.status === 'active' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
+                        {String(b.status).toUpperCase()}
+                      </span>
+                    )},
+                    { header: 'Action', accessor: (b) => (
+                      <button
+                        onClick={() => handleOpenEditModal('approve_hostel_booking', 'Approve Hostel Application', b, b.id)}
+                        className="text-xs font-bold text-primary hover:underline"
+                      >
+                        Approve
+                      </button>
+                    )}
+                  ]}
+                />
+              </div>
+            )}
+
             {/* 2. LEARNING MATERIALS */}
             {getSubTab('resources') === 'materials' && (
               <div className="bg-white border border-zinc-200 rounded-xl p-6 shadow-sm">
-                <div>
-                  <h3 className="text-base font-bold text-zinc-900 mb-1">Curriculum Materials Registry</h3>
-                  <p className="text-xs text-zinc-500 mb-6">Upload PDFs, recorded clinics, or instructions manuals assigned directly within syllabus codes.</p>
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h3 className="text-base font-bold text-zinc-900 mb-1">Curriculum Materials Registry</h3>
+                    <p className="text-xs text-zinc-500">Upload PDFs, recorded clinics, or instructions manuals assigned directly within syllabus codes.</p>
+                  </div>
+                  <button
+                    onClick={() => handleOpenAddModal('add_material', 'Assign Study Material', { title: '', moduleCode: state.modules[0]?.code || '', materialType: 'PDF', uploadedBy: 'Admin', fileUrl: '' })}
+                    className="bg-primary text-white rounded-xl px-4 py-2 text-xs font-semibold hover:bg-dark flex items-center space-x-1"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Assign Material</span>
+                  </button>
                 </div>
 
                 <DataTable<LearningMaterial>
@@ -2134,9 +2311,18 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
             {/* 3. MEDICAL ROTATIONS ATTACHMENTS */}
             {getSubTab('resources') === 'medical-attachments' && (
               <div className="bg-white border border-zinc-200 rounded-xl p-6 shadow-sm">
-                <div>
-                  <h3 className="text-base font-bold text-zinc-900 mb-1">Diagnostic Ward Practicums (Rotations)</h3>
-                  <p className="text-xs text-zinc-500 mb-6 font-medium">Assign onboarded students directly to hospitals and medical facilities.</p>
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h3 className="text-base font-bold text-zinc-900 mb-1">Diagnostic Ward Practicums (Rotations)</h3>
+                    <p className="text-xs text-zinc-500 font-medium">Assign onboarded students directly to hospitals and medical facilities.</p>
+                  </div>
+                  <button
+                    onClick={() => handleOpenAddModal('add_rotation', 'Create Medical Rotation', { studentId: '', facilityName: '', startDate: '', endDate: '', supervisor: '', status: 'pending' })}
+                    className="bg-primary text-white rounded-xl px-4 py-2 text-xs font-semibold hover:bg-dark flex items-center space-x-1"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Create Rotation</span>
+                  </button>
                 </div>
 
                 <DataTable<MedicalAttachment>
@@ -2164,6 +2350,81 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
           </div>
         )}
 
+        {activeTab === 'users' && (
+          <div className="space-y-6">
+            <div className="bg-white border border-zinc-200 rounded-xl p-6 shadow-sm">
+              <div className="mb-6">
+                <h3 className="text-base font-bold text-zinc-900">Application User Management</h3>
+                <p className="text-xs text-zinc-500 mt-1">Only admin and student roles are active. Existing passwords are not displayed; generate a temporary password when a user needs access.</p>
+              </div>
+
+              {generatedPassword && (
+                <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+                  Temporary password for <strong>{generatedPassword.username}</strong>: <span className="font-mono font-black">{generatedPassword.password}</span>
+                </div>
+              )}
+
+              <DataTable<User>
+                data={state.users}
+                idKey="id"
+                searchFilter={(user, q) => user.name.toLowerCase().includes(q) || user.username.toLowerCase().includes(q) || user.role.toLowerCase().includes(q)}
+                columns={[
+                  { header: 'User Name', accessor: (user) => <span className="font-bold text-zinc-900">{user.name}</span> },
+                  { header: 'Login Username', accessor: (user) => <span className="font-mono text-xs">{user.username}</span> },
+                  { header: 'Role', accessor: (user) => <span className="rounded bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase text-primary">{user.role}</span> },
+                  { header: 'Student Link', accessor: (user) => user.studentId || <span className="text-zinc-400">Admin account</span> },
+                  { header: 'Password Access', accessor: (user) => (
+                    <button
+                      onClick={() => resetUserPassword(user)}
+                      className="rounded bg-primary px-2.5 py-1 text-[10px] font-bold text-white"
+                    >
+                      Generate temporary password
+                    </button>
+                  ) }
+                ]}
+              />
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'inquiries' && (
+          <div className="space-y-6">
+            <div className="bg-white border border-zinc-200 rounded-xl p-6 shadow-sm">
+              <div className="mb-6">
+                <h3 className="text-base font-bold text-zinc-900">Student Inquiries Response Desk</h3>
+                <p className="text-xs text-zinc-500 mt-1">Respond to common issues and mark resolved cases for fees, accommodation, IT, admissions, and exams.</p>
+              </div>
+              <DataTable<typeof adminInquiries[number]>
+                data={adminInquiries}
+                idKey="id"
+                searchFilter={(ticket, q) => ticket.student.toLowerCase().includes(q) || ticket.subject.toLowerCase().includes(q) || ticket.message.toLowerCase().includes(q)}
+                columns={[
+                  { header: 'Ticket', accessor: (ticket) => <span className="font-mono font-bold text-primary">{ticket.id}</span> },
+                  { header: 'Student', accessor: (ticket) => <span className="font-bold">{ticket.student}</span> },
+                  { header: 'Subject', accessor: (ticket) => ticket.subject },
+                  { header: 'Message', accessor: (ticket) => ticket.message },
+                  { header: 'Status', accessor: (ticket) => (
+                    <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${ticket.status === 'Resolved' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
+                      {ticket.status}
+                    </span>
+                  ) },
+                  { header: 'Action', accessor: (ticket) => (
+                    <button
+                      onClick={() => {
+                        setAdminInquiries((prev) => prev.map((item) => item.id === ticket.id ? { ...item, status: 'Resolved' } : item));
+                        triggerToast('Inquiry marked as resolved.');
+                      }}
+                      className="rounded bg-primary px-2.5 py-1 text-[10px] font-bold text-white"
+                    >
+                      Resolve
+                    </button>
+                  ) }
+                ]}
+              />
+            </div>
+          </div>
+        )}
+
           </div>
         </div>
 
@@ -2183,7 +2444,7 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
         onClose={() => setIsModalOpen(false)}
         title={modalTitle}
       >
-        <form onSubmit={handleFormSubmit} className="space-y-4 text-xs">
+        <form onSubmit={handleFormSubmit} className="portal-slide-form space-y-4 text-xs rounded-xl border border-zinc-300 bg-white p-4 shadow-sm">
           
           {/* APPLICANT FORM */}
           {(modalType === 'add_applicant' || modalType === 'edit_applicant') && (
@@ -2405,66 +2666,6 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
             </div>
           )}
 
-          {/* COURSE ASSIGN FORM */}
-          {(modalType === 'add_course' || modalType === 'edit_course') && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
-                <label className="sm:text-right text-zinc-600 font-bold pr-2">Course Code *</label>
-                <div className="sm:col-span-2">
-                  <input
-                    type="text"
-                    required
-                    placeholder="CNA-101"
-                    className="w-full border border-zinc-200 rounded-lg p-2 bg-white"
-                    value={formData.code || ''}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
-                <label className="sm:text-right text-zinc-600 font-bold pr-2">Allocated Credits *</label>
-                <div className="sm:col-span-2">
-                  <input
-                    type="number"
-                    required
-                    className="w-full border border-zinc-200 rounded-lg p-2 bg-white"
-                    value={formData.credits || ''}
-                    onChange={(e) => setFormData({ ...formData, credits: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
-                <label className="sm:text-right text-zinc-600 font-bold pr-2">Course Title *</label>
-                <div className="sm:col-span-2">
-                  <input
-                    type="text"
-                    required
-                    className="w-full border border-zinc-200 rounded-lg p-2 bg-white"
-                    value={formData.name || ''}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
-                <label className="sm:text-right text-zinc-600 font-bold pr-2">Target Program *</label>
-                <div className="sm:col-span-2">
-                  <select
-                    className="w-full border border-zinc-200 rounded-lg p-2 bg-white"
-                    value={formData.programCode || 'CNA'}
-                    onChange={(e) => setFormData({ ...formData, programCode: e.target.value })}
-                  >
-                    {state.programs.map(p => (
-                      <option key={p.code} value={p.code}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* MODULE FORM */}
           {(modalType === 'add_module' || modalType === 'edit_module') && (
             <>
@@ -2524,29 +2725,50 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-zinc-600 font-semibold mb-1">Target Cohort Group *</label>
-                  <select
-                    className="w-full border border-zinc-200 rounded-lg p-2 bg-white"
-                    value={formData.cohortName || 'CNA-01'}
-                    onChange={(e) => setFormData({ ...formData, cohortName: e.target.value })}
-                  >
-                    {state.cohorts.map(coh => (
-                      <option key={coh.name} value={coh.name}>{coh.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
                   <label className="block text-zinc-600 font-semibold mb-1">Target Program Sector *</label>
                   <select
                     className="w-full border border-zinc-200 rounded-lg p-2 bg-white"
                     value={formData.programCode || 'CNA'}
-                    onChange={(e) => setFormData({ ...formData, programCode: e.target.value })}
+                    onChange={(e) => {
+                      const programCode = e.target.value;
+                      setFormData({
+                        ...formData,
+                        programCode,
+                        moduleCode: modulesForProgram(programCode)[0]?.code || '',
+                        cohortName: cohortsForProgram(programCode)[0]?.name || ''
+                      });
+                    }}
                   >
                     {state.programs.map(p => (
                       <option key={p.code} value={p.code}>{p.name}</option>
                     ))}
                   </select>
                 </div>
+                <div>
+                  <label className="block text-zinc-600 font-semibold mb-1">Target Module *</label>
+                  <select
+                    className="w-full border border-zinc-200 rounded-lg p-2 bg-white"
+                    value={formData.moduleCode || modulesForProgram(formData.programCode || 'CNA')[0]?.code || ''}
+                    onChange={(e) => setFormData({ ...formData, moduleCode: e.target.value })}
+                  >
+                    {modulesForProgram(formData.programCode || 'CNA').map(m => (
+                      <option key={m.code} value={m.code}>{m.name} ({m.code})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-zinc-600 font-semibold mb-1">Target Cohort Group *</label>
+                <select
+                  className="w-full border border-zinc-200 rounded-lg p-2 bg-white"
+                  value={formData.cohortName || cohortsForProgram(formData.programCode || 'CNA')[0]?.name || ''}
+                  onChange={(e) => setFormData({ ...formData, cohortName: e.target.value })}
+                >
+                  {cohortsForProgram(formData.programCode || 'CNA').map(coh => (
+                    <option key={coh.name} value={coh.name}>{coh.name}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -2690,16 +2912,54 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
 
               <div>
                 <label className="block text-zinc-600 font-semibold mb-1">Modules Taught</label>
-                <select
-                  multiple
-                  className="w-full border border-zinc-200 rounded-lg p-2 bg-white font-mono"
-                  value={typeof formData.assignedModuleCodes === 'string' ? formData.assignedModuleCodes.split(',').map((x: string) => x.trim()).filter(Boolean) : (formData.assignedModuleCodes || [])}
-                  onChange={(e) => setFormData({ ...formData, assignedModuleCodes: Array.from(e.target.selectedOptions).map((option) => option.value) })}
-                >
-                  {state.modules.map((m) => (
-                    <option key={m.code} value={m.code}>{m.name} ({m.code})</option>
-                  ))}
-                </select>
+                {(() => {
+                  const selectedCodes = typeof formData.assignedModuleCodes === 'string'
+                    ? formData.assignedModuleCodes.split(',').map((code: string) => code.trim()).filter(Boolean)
+                    : Array.isArray(formData.assignedModuleCodes)
+                      ? formData.assignedModuleCodes
+                      : [];
+                  const toggleModule = (code: string) => {
+                    const nextCodes = selectedCodes.includes(code)
+                      ? selectedCodes.filter((item: string) => item !== code)
+                      : [...selectedCodes, code];
+                    setFormData({ ...formData, assignedModuleCodes: nextCodes });
+                  };
+
+                  return (
+                    <div className="rounded-lg border border-zinc-300 bg-white shadow-inner">
+                      <div className="flex items-center justify-between border-b border-zinc-200 px-3 py-2">
+                        <span className="text-[10px] font-bold uppercase text-zinc-500">Target Modules</span>
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+                          {selectedCodes.length} selected
+                        </span>
+                      </div>
+                      <div className="max-h-56 overflow-y-auto p-2 space-y-1">
+                        {state.modules.map((m) => {
+                          const isSelected = selectedCodes.includes(m.code);
+                          return (
+                            <label
+                              key={m.code}
+                              className={`flex cursor-pointer items-start gap-2 rounded-md border px-2 py-2 transition ${
+                                isSelected ? 'border-primary bg-primary/5' : 'border-zinc-200 hover:border-primary/50'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                className="mt-0.5 h-4 w-4 accent-primary"
+                                checked={isSelected}
+                                onChange={() => toggleModule(m.code)}
+                              />
+                              <span className="min-w-0">
+                                <span className="block font-bold text-zinc-800">{m.name}</span>
+                                <span className="block text-[10px] font-mono text-zinc-500">{m.code} • {m.programCode}</span>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </>
           )}
@@ -2756,7 +3016,12 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
                   required
                   className="w-full border border-zinc-200 rounded-lg p-2 bg-white"
                   value={formData.studentId || ''}
-                  onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
+                  onChange={(e) => {
+                    const studentId = e.target.value;
+                    const programCode = state.onboardings.find((student) => student.id === studentId)?.programCode;
+                    const firstModule = modulesForProgram(programCode)[0]?.code || '';
+                    setFormData({ ...formData, studentId, moduleCode: firstModule, examId: '' });
+                  }}
                 >
                   <option value="">-- Choose Student candidate --</option>
                   {state.onboardings.map(stud => (
@@ -2825,11 +3090,11 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
                 </div>
                 {formData.type === 'hostel' && (
                   <div>
-                    <label className="block text-zinc-600 font-bold text-dark mb-1">Sessional Hostel Fee (KSh) *</label>
+                    <label className="block text-zinc-600 font-bold text-dark mb-1">Approval Fee (KSh) *</label>
                     <input
                       type="number"
                       required
-                      placeholder="e.g. 12000"
+                      placeholder="e.g. 3000"
                       className="w-full border border-blue-300 rounded-lg p-2 bg-accent/30/50 text-[#0D233A] font-mono font-bold focus:ring-1 focus:ring-primary font-bold"
                       value={formData.hostelFee || ''}
                       onChange={(e) => setFormData({ ...formData, hostelFee: e.target.value })}
@@ -2851,6 +3116,90 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
             </>
           )}
 
+          {modalType === 'approve_hostel_booking' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+                <span className="sm:text-right text-zinc-600 font-bold pr-2">Application</span>
+                <div className="sm:col-span-2 rounded-lg border border-zinc-200 bg-zinc-50 p-2.5 font-bold text-zinc-900">
+                  {formData.studentRegNumber} - {formData.roomNumber}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+                <label className="sm:text-right text-zinc-600 font-bold pr-2">Transaction Code *</label>
+                <input
+                  required
+                  className="sm:col-span-2 w-full border border-zinc-300 rounded-lg p-2 bg-white"
+                  value={formData.transactionCode || ''}
+                  onChange={(e) => setFormData({ ...formData, transactionCode: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+                <label className="sm:text-right text-zinc-600 font-bold pr-2">Bank Transaction Code *</label>
+                <input
+                  required
+                  className="sm:col-span-2 w-full border border-zinc-300 rounded-lg p-2 bg-white"
+                  value={formData.bankTransactionCode || ''}
+                  onChange={(e) => setFormData({ ...formData, bankTransactionCode: e.target.value })}
+                />
+              </div>
+            </div>
+          )}
+
+          {modalType === 'add_material' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+                <label className="sm:text-right text-zinc-600 font-bold pr-2">Material Title *</label>
+                <input required className="sm:col-span-2 w-full border border-zinc-300 rounded-lg p-2 bg-white" value={formData.title || ''} onChange={(e) => setFormData({ ...formData, title: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+                <label className="sm:text-right text-zinc-600 font-bold pr-2">Module *</label>
+                <select className="sm:col-span-2 w-full border border-zinc-300 rounded-lg p-2 bg-white" value={formData.moduleCode || ''} onChange={(e) => setFormData({ ...formData, moduleCode: e.target.value })}>
+                  {state.modules.map((m) => <option key={m.code} value={m.code}>{m.name} ({m.code})</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+                <label className="sm:text-right text-zinc-600 font-bold pr-2">File Type</label>
+                <select className="sm:col-span-2 w-full border border-zinc-300 rounded-lg p-2 bg-white" value={formData.materialType || 'PDF'} onChange={(e) => setFormData({ ...formData, materialType: e.target.value })}>
+                  <option value="PDF">PDF</option>
+                  <option value="Video">Video</option>
+                  <option value="Document">Document</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+                <label className="sm:text-right text-zinc-600 font-bold pr-2">Document URL</label>
+                <input className="sm:col-span-2 w-full border border-zinc-300 rounded-lg p-2 bg-white" value={formData.fileUrl || ''} onChange={(e) => setFormData({ ...formData, fileUrl: e.target.value })} />
+              </div>
+            </div>
+          )}
+
+          {modalType === 'add_rotation' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+                <label className="sm:text-right text-zinc-600 font-bold pr-2">Student *</label>
+                <select required className="sm:col-span-2 w-full border border-zinc-300 rounded-lg p-2 bg-white" value={formData.studentId || ''} onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}>
+                  <option value="">Select student</option>
+                  {state.onboardings.map((o) => <option key={o.id} value={o.id}>{o.studentName} ({o.registrationNumber})</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+                <label className="sm:text-right text-zinc-600 font-bold pr-2">Hospital Facility *</label>
+                <input required className="sm:col-span-2 w-full border border-zinc-300 rounded-lg p-2 bg-white" value={formData.facilityName || ''} onChange={(e) => setFormData({ ...formData, facilityName: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+                <label className="sm:text-right text-zinc-600 font-bold pr-2">Medical Staff Supervisor *</label>
+                <input required className="sm:col-span-2 w-full border border-zinc-300 rounded-lg p-2 bg-white" value={formData.supervisor || ''} onChange={(e) => setFormData({ ...formData, supervisor: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+                <label className="sm:text-right text-zinc-600 font-bold pr-2">Start Date</label>
+                <input type="date" className="sm:col-span-2 w-full border border-zinc-300 rounded-lg p-2 bg-white" value={formData.startDate || ''} onChange={(e) => setFormData({ ...formData, startDate: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
+                <label className="sm:text-right text-zinc-600 font-bold pr-2">End Date</label>
+                <input type="date" className="sm:col-span-2 w-full border border-zinc-300 rounded-lg p-2 bg-white" value={formData.endDate || ''} onChange={(e) => setFormData({ ...formData, endDate: e.target.value })} />
+              </div>
+            </div>
+          )}
+
           {/* EXAM SCHEDULE FORM */}
           {(modalType === 'add_exam' || modalType === 'edit_exam') && (
             <>
@@ -2868,25 +3217,34 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-zinc-600 font-semibold mb-1">Exam Type</label>
+                  <label className="block text-zinc-600 font-semibold mb-1">Target Program</label>
                   <select
                     className="w-full border border-zinc-200 rounded-lg p-2 bg-white"
-                    value={formData.examType || 'Final Exam'}
-                    onChange={(e) => setFormData({ ...formData, examType: e.target.value })}
+                    value={formData.programCode || state.modules.find((m) => m.code === formData.moduleCode)?.programCode || 'CDA'}
+                    onChange={(e) => {
+                      const programCode = e.target.value;
+                      setFormData({
+                        ...formData,
+                        programCode,
+                        moduleCode: modulesForProgram(programCode)[0]?.code || '',
+                        cohortName: cohortsForProgram(programCode)[0]?.name || '',
+                        className: cohortsForProgram(programCode)[0]?.name || ''
+                      });
+                    }}
                   >
-                    <option value="Final Exam">Final Exam</option>
-                    <option value="CAT">CAT</option>
-                    <option value="Assignment">Assignment</option>
+                    {state.programs.map(p => (
+                      <option key={p.code} value={p.code}>{p.name}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
                   <label className="block text-zinc-600 font-semibold mb-1">Subject Module Code</label>
                   <select
                     className="w-full border border-zinc-200 rounded-lg p-2 bg-white"
-                    value={formData.moduleCode || 'MOD-CDA-01'}
+                    value={formData.moduleCode || modulesForProgram(formData.programCode || state.modules.find((m) => m.code === formData.moduleCode)?.programCode || 'CDA')[0]?.code || ''}
                     onChange={(e) => setFormData({ ...formData, moduleCode: e.target.value })}
                   >
-                    {state.modules.map(m => (
+                    {modulesForProgram(formData.programCode || state.modules.find((m) => m.code === formData.moduleCode)?.programCode || 'CDA').map(m => (
                       <option key={m.code} value={m.code}>{m.name} ({m.code})</option>
                     ))}
                   </select>
@@ -2895,14 +3253,39 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
                   <label className="block text-zinc-600 font-semibold mb-1">Target Cohort</label>
                   <select
                     className="w-full border border-zinc-200 rounded-lg p-2 bg-white"
-                    value={formData.cohortName || formData.className || 'CDA-01'}
+                    value={formData.cohortName || formData.className || cohortsForProgram(formData.programCode || 'CDA')[0]?.name || ''}
                     onChange={(e) => setFormData({ ...formData, cohortName: e.target.value, className: e.target.value })}
                   >
-                    {state.cohorts.map(c => (
+                    {cohortsForProgram(formData.programCode || state.modules.find((m) => m.code === formData.moduleCode)?.programCode || 'CDA').map(c => (
                       <option key={c.name} value={c.name}>{c.name}</option>
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-zinc-600 font-semibold mb-1">Exam Type</label>
+                <select
+                  className="w-full border border-zinc-200 rounded-lg p-2 bg-white"
+                  value={formData.examType || 'Final Exam'}
+                  onChange={(e) => setFormData({ ...formData, examType: e.target.value })}
+                >
+                  <option value="Final Exam">Final Exam</option>
+                  <option value="CAT">CAT</option>
+                  <option value="Assignment">Assignment</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-zinc-600 font-semibold mb-1">Total Marks</label>
+                <input
+                  type="number"
+                  min="1"
+                  required
+                  className="w-full border border-zinc-200 rounded-lg p-2 bg-white font-mono font-bold"
+                  value={formData.totalMarks || (formData.examType === 'CAT' ? '30' : '100')}
+                  onChange={(e) => setFormData({ ...formData, totalMarks: e.target.value })}
+                />
               </div>
 
               <div className="grid grid-cols-3 gap-4">
@@ -2961,19 +3344,19 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
                   <label className="block text-zinc-600 font-semibold mb-1">Subject Module</label>
                   <select
                     className="w-full border border-zinc-200 rounded-lg p-2 bg-white"
-                    value={formData.moduleCode || 'MOD-CDA-01'}
-                    onChange={(e) => setFormData({ ...formData, moduleCode: e.target.value })}
+                    value={formData.moduleCode || modulesForProgram(state.onboardings.find((student) => student.id === formData.studentId)?.programCode)[0]?.code || 'MOD-CDA-01'}
+                    onChange={(e) => setFormData({ ...formData, moduleCode: e.target.value, examId: '' })}
                   >
-                    {state.modules.map(m => (
+                    {modulesForProgram(state.onboardings.find((student) => student.id === formData.studentId)?.programCode).map(m => (
                       <option key={m.code} value={m.code}>{m.name} ({m.code})</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-zinc-600 font-semibold mb-1">Score Marks (Percent %)</label>
+                  <label className="block text-zinc-600 font-semibold mb-1">Score Marks</label>
                   <input
                     type="number"
-                    max="100"
+                    max={state.exams.find((exam) => exam.id === formData.examId)?.totalMarks || 100}
                     required
                     className="w-full border border-zinc-200 rounded-lg p-2 bg-white font-mono font-bold"
                     value={formData.marks || '80'}
@@ -2987,20 +3370,27 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
                 <select
                   className="w-full border border-zinc-200 rounded-lg p-2 bg-white"
                   value={formData.examId || ''}
-                  onChange={(e) => setFormData({ ...formData, examId: e.target.value })}
+                  onChange={(e) => {
+                    const examId = e.target.value;
+                    const exam = state.exams.find((item) => item.id === examId);
+                    setFormData({ ...formData, examId, moduleCode: exam?.moduleCode || formData.moduleCode });
+                  }}
                 >
                   <option value="">-- Choose assessment --</option>
-                  {state.exams.map(ex => (
-                    <option key={ex.id} value={ex.id}>{ex.name}</option>
+                  {state.exams.filter(ex => !formData.moduleCode || ex.moduleCode === formData.moduleCode).map(ex => (
+                    <option key={ex.id} value={ex.id}>{ex.name} ({ex.examType || 'Final Exam'} / {ex.totalMarks} marks)</option>
                   ))}
                 </select>
+                {state.exams.find((exam) => exam.id === formData.examId)?.examType === 'CAT' && (
+                  <p className="mt-1 text-[10px] font-semibold text-zinc-500">CAT marks are stored as absolute scores only and do not generate a letter grade.</p>
+                )}
               </div>
 
               <div>
                 <label className="block text-zinc-600 font-semibold mb-1">Lecturer Feedback Evaluatives</label>
                 <input
                   type="text"
-                  placeholder="Superb coursework logs."
+                  placeholder="Superb modulework logs."
                   className="w-full border border-zinc-200 rounded-lg p-2 bg-white"
                   value={formData.comments || ''}
                   onChange={(e) => setFormData({ ...formData, comments: e.target.value })}
@@ -3074,8 +3464,64 @@ export function AdminPortal({ state, setAppState }: AdminPortalProps) {
             </div>
           )}
 
+          {modalType === 'edit_grade_rules' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-zinc-600 font-semibold mb-1">A Minimum Score</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  required
+                  className="w-full border border-zinc-300 rounded-lg p-2 bg-white"
+                  value={formData.aMin || 80}
+                  onChange={(e) => setFormData({ ...formData, aMin: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-zinc-600 font-semibold mb-1">B Minimum Score</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  required
+                  className="w-full border border-zinc-300 rounded-lg p-2 bg-white"
+                  value={formData.bMin || 70}
+                  onChange={(e) => setFormData({ ...formData, bMin: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-zinc-600 font-semibold mb-1">C Minimum Score</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  required
+                  className="w-full border border-zinc-300 rounded-lg p-2 bg-white"
+                  value={formData.cMin || 50}
+                  onChange={(e) => setFormData({ ...formData, cMin: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-zinc-600 font-semibold mb-1">D Minimum Score</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  required
+                  className="w-full border border-zinc-300 rounded-lg p-2 bg-white"
+                  value={formData.dMin || 40}
+                  onChange={(e) => setFormData({ ...formData, dMin: e.target.value })}
+                />
+              </div>
+              <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-[10px] font-semibold text-zinc-600">
+                E is automatically assigned below the D minimum score. CATs bypass these grade bands.
+              </div>
+            </div>
+          )}
+
           {/* DYNAMIC SUBMIT ACTIONS FOR MODAL */}
-          <div className="flex justify-end space-x-2 pt-4 border-t border-zinc-100">
+          <div className="sticky bottom-0 -mx-4 -mb-4 mt-6 flex justify-end space-x-2 border-t border-zinc-200 bg-white/95 p-4 shadow-[0_-12px_30px_rgba(15,23,42,0.08)] backdrop-blur">
             <button
               type="button"
               onClick={() => setIsModalOpen(false)}

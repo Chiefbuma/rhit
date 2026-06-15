@@ -88,7 +88,7 @@ export function StudentPortal({
   onLogout
 }: StudentPortalProps) {
   // Main tabs based on RHTI Portal tabs
-  const [activeTab, setActiveTab] = useState<'home' | 'fees' | 'timetable' | 'registration' | 'evaluation' | 'results' | 'bookroom' | 'enquiries'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'fees' | 'timetable' | 'registration' | 'results' | 'bookroom' | 'enquiries'>('home');
   // Secondary subtabs within active tabs (bullet items separated by dot)
   const [activeSubTab, setActiveSubTab] = useState<string>('profile');
 
@@ -100,6 +100,7 @@ export function StudentPortal({
   const studentInvoices = invoices.filter(inv => inv.studentId === student.id);
   const studentPayments = payments.filter(pay => pay.studentId === student.id);
   const studentBookings = hostelBookings.filter(b => b.studentId === student.id);
+  const hasAllocatedAccommodation = studentBookings.some((booking) => ['active', 'approved'].includes(booking.status));
   const studentClearance = clearances.find(c => c.studentId === student.id);
   const studentGraduation = graduations.find(g => g.studentId === student.id);
   const studentModules = modules.filter(m => m.programCode === student.programCode);
@@ -117,7 +118,7 @@ export function StudentPortal({
   const [paying, setPaying] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('M-Pesa');
   const [phoneNumber, setPhoneNumber] = useState('0712345678');
-  const [personalEmail, setPersonalEmail] = useState(student.email || 'student@uonbi.ac.ke');
+  const [personalEmail, setPersonalEmail] = useState(student.email || 'student@rhti.local');
   const [passwordState, setPasswordState] = useState('●●●●●●●●');
 
   const [roomModalOpen, setRoomModalOpen] = useState(false);
@@ -249,6 +250,27 @@ export function StudentPortal({
     return Number((sum / studentResults.length).toFixed(2));
   };
 
+  const moduleResultRows = studentModules.map((module) => {
+    const results = studentResults.filter((result) => result.moduleCode === module.code);
+    const catResults = results.filter((result) => exams.find((exam) => exam.id === result.examId)?.examType === 'CAT');
+    const finalExam = results.find((result) => exams.find((exam) => exam.id === result.examId)?.examType === 'Final Exam') || results.find((result) => exams.find((exam) => exam.id === result.examId)?.examType !== 'CAT');
+    const catAverage = catResults.length
+      ? catResults.reduce((sum, result) => {
+          const exam = exams.find((item) => item.id === result.examId);
+          const total = exam?.totalMarks || 30;
+          return sum + ((result.marks / total) * 100);
+        }, 0) / catResults.length
+      : 0;
+    const examPercent = finalExam
+      ? (finalExam.marks / (exams.find((exam) => exam.id === finalExam.examId)?.totalMarks || 100)) * 100
+      : 0;
+    const finalScore = Number(((catAverage * 0.3) + (examPercent * 0.7)).toFixed(1));
+    const grade = finalScore >= 80 ? 'A' : finalScore >= 70 ? 'B' : finalScore >= 50 ? 'C' : finalScore >= 40 ? 'D' : 'E';
+    const verdict = finalScore >= 40 ? 'Pass' : 'Fail';
+
+    return { module, catAverage, examPercent, finalScore, grade, verdict, hasResults: results.length > 0 };
+  });
+
   const profileCompleteness = () => {
     let score = 30;
     if (student.documentStatus.idUploaded) score += 25;
@@ -265,7 +287,6 @@ export function StudentPortal({
     else if (tab === 'fees') setActiveSubTab('statement');
     else if (tab === 'timetable') setActiveSubTab('weekly');
     else if (tab === 'registration') setActiveSubTab('units');
-    else if (tab === 'evaluation') setActiveSubTab('evaluate');
     else if (tab === 'results') setActiveSubTab('grades');
     else if (tab === 'bookroom') setActiveSubTab('booking');
     else if (tab === 'enquiries') setActiveSubTab('tickets');
@@ -280,7 +301,7 @@ export function StudentPortal({
   // Coursework Evaluation submission
   const handleEvaluationSubmit = (moduleCode: string) => {
     setCompletedEvaluations(prev => [...prev, moduleCode]);
-    showToast(`Course Appraisal Evaluation submitted to academic registry for module: ${moduleCode}`, 'success');
+    showToast(`Module Evaluation submitted to academic registry for module: ${moduleCode}`, 'success');
   };
 
   // Enquiry submit
@@ -312,23 +333,15 @@ export function StudentPortal({
       )}
 
       {/* CENTRAL PLATFORM WRAPPER PAGE */}
-      <div className="max-w-6xl mx-auto bg-white border border-[#BDC3C7] shadow-xl rounded-md overflow-hidden flex flex-col p-4 md:p-8 space-y-4">
+      <div className="school-portal-shell max-w-6xl mx-auto bg-white border border-[#BDC3C7] shadow-xl rounded-md overflow-hidden flex flex-col p-4 md:p-8 space-y-4">
         
-        {/* LOGO & HEADING SECTION - AS SEEN IN THE UON INTEGRATED SCREENSHOT */}
-        <div className="flex flex-col sm:flex-row items-center gap-4 border-b border-zinc-200 pb-5">
+        {/* LOGO & HEADING SECTION - AS SEEN IN THE RHTI INTEGRATED SCREENSHOT */}
+        <div className="flex items-center justify-start border-b border-zinc-200 pb-3">
           <img 
             src="/logo/rhti-logo.png" 
             alt="Radiant Hospital Training Institute Logo" 
-            className="h-20 object-contain"
+            className="h-14 object-contain"
           />
-          <div className="text-center sm:text-left space-y-1">
-            <h1 className="font-serif font-bold text-2xl md:text-3xl text-zinc-900 tracking-tight leading-none">
-              Radiant Hospital Training Institute
-            </h1>
-            <p className="text-xs italic text-zinc-500 font-medium font-serif leading-tight">
-              A world-class university committed to scholarly excellence
-            </p>
-          </div>
         </div>
 
         {/* RECTANGULAR FOLDER TABS - MATCHES SCREENTSHOT TAB STYLING PRODUCING BULLET ACCENTS */}
@@ -338,7 +351,6 @@ export function StudentPortal({
             { id: 'fees', label: 'Fees' },
             { id: 'timetable', label: 'Timetables' },
             { id: 'registration', label: 'Module Registration' },
-            { id: 'evaluation', label: 'Module Evaluation' },
             { id: 'results', label: 'Results' },
             { id: 'bookroom', label: 'Book Room' },
             { id: 'enquiries', label: 'Enquiries' },
@@ -350,8 +362,8 @@ export function StudentPortal({
                 onClick={() => selectMainTab(tab.id as any)}
                 className={`px-4 py-2 text-xs font-bold uppercase transition-all whitespace-nowrap outline-none ${
                   isSelected 
-                    ? 'bg-[#9ACCE6] text-black border-t border-x border-[#7E8B92] rounded-t' 
-                    : 'bg-[#7E8B92] hover:bg-[#6D7879] text-white rounded-t border-t border-x border-transparent'
+                    ? 'bg-primary text-white border-t border-x border-primary rounded-t' 
+                    : 'bg-dark/85 hover:bg-primary text-white rounded-t border-t border-x border-transparent'
                 }`}
               >
                 {tab.label}
@@ -361,16 +373,16 @@ export function StudentPortal({
           
           <button
             onClick={onLogout}
-            className="ml-auto bg-[#E74C3C] hover:bg-[#C0392B] text-white px-4 py-2 rounded-t text-xs uppercase font-bold outline-none whitespace-nowrap"
+            className="ml-auto bg-[#E74C3C] hover:bg-[#C0392B] text-white px-2.5 py-1 rounded-t text-[10px] uppercase font-bold outline-none whitespace-nowrap"
           >
             Logout
           </button>
         </div>
 
         {/* SUB-TAB NAVIGATIONAL BAR STRIP - MATCHES BLUE ACCENTS FROM THE SCREENSHOT */}
-        <div className="bg-[#9ACCE6] border-b border-[#7E8B92] px-4 py-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-slate-900 font-medium select-none shadow-sm rounded-b">
+        <div className="bg-primary/10 border-b border-primary/30 px-4 py-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-slate-900 font-medium select-none shadow-sm rounded-b">
           
-          {/* Dynamically query corresponding UON sub-links with bullet divider dot indicators */}
+          {/* Dynamically query corresponding RHTI sub-links with bullet divider dot indicators */}
           {activeTab === 'home' && (
             <>
               <span className={`cursor-pointer ${activeSubTab === 'profile' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setActiveSubTab('profile')}>• My profile</span>
@@ -385,14 +397,12 @@ export function StudentPortal({
             <>
               <span className={`cursor-pointer ${activeSubTab === 'statement' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setActiveSubTab('statement')}>• Fee Statement</span>
               <span className={`cursor-pointer ${activeSubTab === 'history' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setActiveSubTab('history')}>• Payment History</span>
-              <span className={`cursor-pointer ${activeSubTab === 'caution' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setActiveSubTab('caution')}>• Caution Refund Application</span>
             </>
           )}
 
           {activeTab === 'timetable' && (
             <>
               <span className={`cursor-pointer ${activeSubTab === 'weekly' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setActiveSubTab('weekly')}>• Weekly Class Timetable</span>
-              <span className={`cursor-pointer ${activeSubTab === 'nominal' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setActiveSubTab('nominal')}>• Class Nominal Roll status</span>
             </>
           )}
 
@@ -400,19 +410,12 @@ export function StudentPortal({
             <>
               <span className={`cursor-pointer ${activeSubTab === 'units' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setActiveSubTab('units')}>• Registered Units list</span>
               <span className={`cursor-pointer ${activeSubTab === 'materials' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setActiveSubTab('materials')}>• Learning Resources</span>
-              <span className={`cursor-pointer ${activeSubTab === 'lecturers' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setActiveSubTab('lecturers')}>• Lecturers</span>
-            </>
-          )}
-
-          {activeTab === 'evaluation' && (
-            <>
-              <span className={`cursor-pointer ${activeSubTab === 'evaluate' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setActiveSubTab('evaluate')}>• Module Evaluations</span>
             </>
           )}
 
           {activeTab === 'results' && (
             <>
-              <span className={`cursor-pointer ${activeSubTab === 'grades' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setActiveSubTab('grades')}>• Semester Grade Sheet</span>
+              <span className={`cursor-pointer ${activeSubTab === 'grades' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setActiveSubTab('grades')}>• Module Grade Sheet</span>
               <span className={`cursor-pointer ${activeSubTab === 'transcript' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setActiveSubTab('transcript')}>• Certified Transcripts</span>
               <span className={`cursor-pointer ${activeSubTab === 'graduation' ? 'font-bold text-dark underline underline-offset-2' : 'hover:underline text-blue-800'}`} onClick={() => setActiveSubTab('graduation')}>• Graduation Status</span>
             </>
@@ -445,112 +448,37 @@ export function StudentPortal({
               
               {/* Profile subtab */}
               {activeSubTab === 'profile' && (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <div className="lg:col-span-2 space-y-6">
-                    <fieldset className="border border-zinc-300 p-5 rounded-md text-left">
-                      <legend className="text-xs font-black text-dark bg-white px-2">RHTI Registry Notice</legend>
-                      <h3 className="text-lg font-bold text-zinc-950 mb-2 font-serif">Welcome back, {student.studentName}</h3>
-                      <p className="text-xs text-zinc-650 leading-relaxed font-sans mt-2">
-                        Welcome to the Radiant Hospital Training Institute integrated virtual campus workspace. From this consolidated core digital client board, you can access your clinically approved medical timetable schedules, syllabus paper downloads, fees wallets, and registrar clearance parameters dynamically.
-                      </p>
-                    </fieldset>
-
-                    {/* Checklists for documents upload */}
-                    <fieldset className="border border-zinc-300 p-5 rounded-md text-left">
-                      <legend className="text-xs font-black text-dark bg-white px-2">Registry Document Checklist ({profileCompleteness()}% Uploaded)</legend>
-                      <div className="space-y-4">
-                        <div className="w-full bg-[#BDC3C7]/40 h-2 rounded overflow-hidden">
-                          <div className="bg-primary h-full transition-all duration-300" style={{ width: `${profileCompleteness()}%` }} />
+                <div className="max-w-2xl">
+                  <fieldset className="border border-zinc-300 p-5 rounded-md text-left bg-white">
+                    <legend className="text-xs font-black text-dark bg-white px-2">Student Profile</legend>
+                    <div className="flex flex-col sm:flex-row gap-4">
+                      <div className="h-24 w-24 rounded border border-zinc-300 bg-zinc-50 flex items-center justify-center shrink-0">
+                        <UserIcon className="h-10 w-10 text-zinc-300" />
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 text-xs flex-1">
+                        <div className="flex justify-between gap-4 border-b border-zinc-100 pb-2">
+                          <span className="font-bold text-zinc-500">Student name</span>
+                          <span className="font-bold text-zinc-900 text-right">{student.studentName}</span>
                         </div>
-                        
-                        <div className="space-y-3 font-sans text-xs">
-                          {/* item 1 */}
-                          <div className="flex justify-between items-center bg-[#F8F9FA] p-3 border border-zinc-200 rounded">
-                            <div>
-                              <span className="font-bold text-zinc-805 block">National Identity / Passports Copy File</span>
-                              <span className="text-[10px] text-zinc-450 block mt-0.5">Primary identification registry record</span>
-                            </div>
-                            {student.documentStatus.idUploaded ? (
-                              <span className="text-[10px] text-emerald-800 font-bold bg-emerald-50 border border-emerald-250 px-2.5 py-1 rounded">Verified File</span>
-                            ) : (
-                              <button 
-                                onClick={() => triggerDocUpload('id')}
-                                className="bg-[#BDC3C7] hover:bg-[#95A5A6] text-black font-bold uppercase text-[9px] px-3 py-1.5 rounded transition"
-                              >
-                                Upload doc
-                              </button>
-                            )}
-                          </div>
-
-                          {/* item 2 */}
-                          <div className="flex justify-between items-center bg-[#F8F9FA] p-3 border border-zinc-200 rounded">
-                            <div>
-                              <span className="font-bold text-zinc-805 block">KCSE Certificates & Transcripts</span>
-                              <span className="text-[10px] text-zinc-450 block mt-0.5">High school qualifications document</span>
-                            </div>
-                            {student.documentStatus.certificatesUploaded ? (
-                              <span className="text-[10px] text-emerald-800 font-bold bg-emerald-50 border border-emerald-250 px-2.5 py-1 rounded">Verified File</span>
-                            ) : (
-                              <button 
-                                onClick={() => triggerDocUpload('certs')}
-                                className="bg-[#BDC3C7] hover:bg-[#95A5A6] text-black font-bold uppercase text-[9px] px-3 py-1.5 rounded transition"
-                              >
-                                Upload doc
-                              </button>
-                            )}
-                          </div>
-
-                          {/* item 3 */}
-                          <div className="flex justify-between items-center bg-[#F8F9FA] p-3 border border-zinc-200 rounded">
-                            <div>
-                              <span className="font-bold text-zinc-805 block">Biometric Passport Portrait Photo</span>
-                              <span className="text-[10px] text-zinc-450 block mt-0.5">Required for smart student badge printing</span>
-                            </div>
-                            {student.documentStatus.photoUploaded ? (
-                              <span className="text-[10px] text-emerald-800 font-bold bg-emerald-50 border border-emerald-250 px-2.5 py-1 rounded">Verified Photo</span>
-                            ) : (
-                              <button 
-                                onClick={() => triggerDocUpload('photo')}
-                                className="bg-[#BDC3C7] hover:bg-[#95A5A6] text-black font-bold uppercase text-[9px] px-3 py-1.5 rounded transition"
-                              >
-                                Upload doc
-                              </button>
-                            )}
-                          </div>
+                        <div className="flex justify-between gap-4 border-b border-zinc-100 pb-2">
+                          <span className="font-bold text-zinc-500">Registration number</span>
+                          <span className="font-mono font-bold text-primary text-right">{student.registrationNumber}</span>
+                        </div>
+                        <div className="flex justify-between gap-4 border-b border-zinc-100 pb-2">
+                          <span className="font-bold text-zinc-500">Program</span>
+                          <span className="font-bold text-zinc-900 text-right">{program?.name || student.programCode}</span>
+                        </div>
+                        <div className="flex justify-between gap-4 border-b border-zinc-100 pb-2">
+                          <span className="font-bold text-zinc-500">Cohort</span>
+                          <span className="font-bold text-zinc-900 text-right">{student.assignedCohort}</span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span className="font-bold text-zinc-500">Email</span>
+                          <span className="font-bold text-zinc-900 text-right">{student.email}</span>
                         </div>
                       </div>
-                    </fieldset>
-                  </div>
-
-                  <div className="space-y-6">
-                    <fieldset className="border border-zinc-300 p-5 rounded-md text-left">
-                      <legend className="text-xs font-black text-dark bg-white px-2">Registrar Board Advisory Bulletin</legend>
-                      <div className="bg-[#F1F9FF] border border-[#B3D7EA] p-4 text-xs font-serif leading-relaxed text-blue-950 space-y-2">
-                        <h4 className="font-bold text-dark uppercase tracking-wide">Congregation Alert Year 2026</h4>
-                        <p>
-                          Scholars enrolled under medical clinical rosters are structurally updated to confirm their exam docket registration cards by July 2026. Nominal status updates require M-pesa wallet clearance.
-                        </p>
-                      </div>
-                    </fieldset>
-
-                    <fieldset className="border border-zinc-300 p-5 rounded-md text-left">
-                      <legend className="text-xs font-black text-dark bg-white px-2">Academic Enrolled direction</legend>
-                      <div className="font-sans text-xs space-y-2">
-                        <div>
-                          <span className="text-slate-400 font-bold text-[9px] uppercase">Allocated track</span>
-                          <span className="block font-bold text-zinc-900">{program?.name || 'Academic Studies Program'}</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400 font-bold text-[9px] uppercase">Program initials / cohort</span>
-                          <span className="block font-bold text-zinc-900 font-mono">{student.programCode} / {student.assignedClass}</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400 font-bold text-[9px] uppercase">Enrolled Cohort group</span>
-                          <span className="block font-bold text-[#1F40AF]">{student.assignedCohort}</span>
-                        </div>
-                      </div>
-                    </fieldset>
-                  </div>
+                    </div>
+                  </fieldset>
                 </div>
               )}
 
@@ -561,20 +489,17 @@ export function StudentPortal({
                     <div className="w-[360px] bg-[#1E3F66] text-white rounded p-4 border border-[#526E90] space-y-4">
                       <div className="flex justify-between items-center border-b border-[#526E90] pb-2">
                         <div>
-                          <h4 className="text-[10px] tracking-widest font-bold">UNIVERSITY OF NAIROBI</h4>
+                          <h4 className="text-[10px] tracking-widest font-bold">RADIANT HOSPITAL TRAINING INSTITUTE</h4>
                           <span className="text-[8px] uppercase tracking-wider text-slate-350 block leading-none">Student Identification Badge</span>
                         </div>
                         <span className="bg-[#E74C3C] text-white text-[8px] font-bold px-2 py-0.5 rounded uppercase">SMIS</span>
                       </div>
 
                       <div className="flex items-center space-x-4">
-                        <div className="h-20 w-20 bg-slate-200 rounded border-2 border-[#526E90] overflow-hidden shrink-0">
-                          <img 
-                            src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=150" 
-                            alt="avatar ID" 
-                            referrerPolicy="no-referrer"
-                            className="h-full w-full object-cover"
-                          />
+                        <div className="h-20 w-20 bg-white/10 rounded border-2 border-[#526E90] overflow-hidden shrink-0 flex items-center justify-center">
+                          <span className="text-2xl font-black text-white">
+                            {student.studentName.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}
+                          </span>
                         </div>
                         <div className="text-left select-none truncate">
                           <h3 className="font-bold text-sm tracking-tight leading-none text-white truncate">{student.studentName}</h3>
@@ -587,7 +512,7 @@ export function StudentPortal({
                       <div className="pt-2 border-t border-[#526E90] flex justify-between items-center text-[9px] font-mono text-[#A5C1E1]">
                         <div>
                           <span className="block text-[7px] text-[#A5C1E1]/80">DEPARTMENT</span>
-                          <span className="font-bold text-white uppercase">Clinical Science Medicine</span>
+                          <span className="font-bold text-white uppercase">{program?.name || student.programCode}</span>
                         </div>
                         <div className="text-right">
                           <span className="block text-[7px] text-[#A5C1E1]/80">VALID UNTIL</span>
@@ -752,42 +677,38 @@ export function StudentPortal({
                 <div className="space-y-4 text-left">
                   <fieldset className="border border-zinc-300 p-5 rounded-md">
                     <legend className="text-xs font-black text-dark bg-white px-2">Academic Audit Progress Tracking</legend>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs font-sans">
-                      <div className="space-y-3.5">
-                        <div className="p-3 bg-[#FCFCFC] border border-zinc-200 rounded">
-                          <span className="text-[10px] text-zinc-400 font-bold uppercase">Average merit GPA</span>
-                          <p className="text-2xl font-black text-blue-950 mt-1">{calculateGPA()} / 4.0 GPA</p>
-                          <span className="text-[10px] text-zinc-505 block mt-1">Excellent class credential standing</span>
-                        </div>
-
-                        <div className="p-3 bg-[#FCFCFC] border border-zinc-200 rounded">
-                          <span className="text-[10px] text-zinc-400 font-bold uppercase">Enrolled Modules</span>
-                          <p className="text-base font-bold text-zinc-9D0 mt-1">Year II — Semester 2 Clinical Sequence</p>
-                        </div>
-                      </div>
-
-                      <div className="space-y-3">
-                        <h4 className="font-bold text-zinc-900 uppercase text-[10px] border-b border-zinc-150 pb-1.5">Module completion progress</h4>
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-[10px] font-bold">
-                            <span>Syllabus completed classes</span>
-                            <span>12 / 16 credits</span>
-                          </div>
-                          <div className="w-full bg-slate-100 h-2 rounded overflow-hidden border border-zinc-200">
-                            <div className="bg-[#2980B9] h-full" style={{ width: '75%' }} />
-                          </div>
-                        </div>
-
-                        <div className="space-y-1 pt-1.5">
-                          <div className="flex justify-between text-[10px] font-bold">
-                            <span>Clinical laboratory rotations</span>
-                            <span>8 / 8 requirements fulfilled</span>
-                          </div>
-                          <div className="w-full bg-slate-100 h-2 rounded overflow-hidden border border-zinc-200">
-                            <div className="bg-[#2ECC71] h-full" style={{ width: '100%' }} />
-                          </div>
-                        </div>
-                      </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse border border-zinc-300 text-xs font-sans text-left">
+                        <thead>
+                          <tr className="font-bold">
+                            <th className="border border-zinc-300 p-2.5">Module</th>
+                            <th className="border border-zinc-300 p-2.5">CATs Recorded</th>
+                            <th className="border border-zinc-300 p-2.5">Final Exam</th>
+                            <th className="border border-zinc-300 p-2.5">Final Score</th>
+                            <th className="border border-zinc-300 p-2.5">Progress</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {moduleResultRows.map((row) => {
+                            const moduleExams = studentResults.filter((result) => result.moduleCode === row.module.code);
+                            const catCount = moduleExams.filter((result) => exams.find((exam) => exam.id === result.examId)?.examType === 'CAT').length;
+                            const hasFinal = moduleExams.some((result) => exams.find((exam) => exam.id === result.examId)?.examType === 'Final Exam');
+                            return (
+                              <tr key={row.module.code} className="hover:bg-zinc-50">
+                                <td className="border border-zinc-300 p-2.5 font-bold">{row.module.name}</td>
+                                <td className="border border-zinc-300 p-2.5 font-mono">{catCount}</td>
+                                <td className="border border-zinc-300 p-2.5">{hasFinal ? 'Recorded' : 'Pending'}</td>
+                                <td className="border border-zinc-300 p-2.5 font-mono font-bold">{row.hasResults ? `${row.finalScore}%` : 'Pending'}</td>
+                                <td className="border border-zinc-300 p-2.5">
+                                  <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${row.hasResults && hasFinal ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
+                                    {row.hasResults && hasFinal ? 'Complete' : 'In progress'}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   </fieldset>
                 </div>
@@ -804,12 +725,15 @@ export function StudentPortal({
               {/* Fee statement */}
               {activeSubTab === 'statement' && (
                 <div className="space-y-6 text-left font-sans">
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-2 space-y-4">
+                  <div className="space-y-4">
+                    <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs font-bold text-zinc-700">
+                      Total invoiced: Kes {totalInvoiced.toLocaleString()} • Paid: Kes {totalPaid.toLocaleString()} • Balance: Kes {feeBalance.toLocaleString()}
+                    </div>
+                    <div className="space-y-4">
                       <fieldset className="border border-zinc-300 p-5 rounded-md">
-                        <legend className="text-xs font-black text-dark bg-white px-2">Semester Tuition Invoices & balance tracking</legend>
+                        <legend className="text-xs font-black text-dark bg-white px-2">Program Tuition Invoices & balance tracking</legend>
                         <p className="text-xs text-zinc-405 leading-relaxed mb-4">
-                          Invoices are compiled at class registration time based on active credits layout. Pay immediately using computer integrated checkout STK Push.
+                          Invoices are compiled at program registration time based on active modules layout. Pay immediately using computer integrated checkout STK Push.
                         </p>
 
                         <div className="space-y-3">
@@ -817,7 +741,7 @@ export function StudentPortal({
                             <div key={inv.id} className="p-3 bg-[#FCFCFC] border border-zinc-250 rounded flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-xs select-none">
                               <div>
                                 <span className="font-mono text-[9px] text-[#2980B9] font-bold block">Ref ID: {inv.invoiceNumber}</span>
-                                <span className="font-bold text-zinc-800 block text-xs">{inv.programCode} Core Anatomy Semester Allocation Tuition</span>
+                                <span className="font-bold text-zinc-800 block text-xs">{inv.programCode} Core Anatomy Program Allocation Tuition</span>
                                 <span className="text-[10px] text-zinc-400 block font-mono mt-0.5">Payment due date: {inv.dueDate}</span>
                               </div>
                               <div className="flex items-center space-x-4 shrink-0 font-sans">
@@ -846,22 +770,6 @@ export function StudentPortal({
                       </fieldset>
                     </div>
 
-                    <div className="space-y-6">
-                      <fieldset className="border border-zinc-300 p-5 rounded-md">
-                        <legend className="text-xs font-black text-dark bg-white px-2">Wallet Summary Statement</legend>
-                        <div className="bg-[#2C3E50] text-[#FFFFFF] p-5 rounded space-y-3 font-sans relative overflow-hidden select-none">
-                          <div className="absolute top-0 right-0 h-20 w-20 bg-primary/10 rounded-full filter blur-lg transform translate-x-4 -translate-y-4" />
-                          <span className="text-[9px] tracking-wider text-slate-350 font-bold block uppercase">Cumulative Account Balance</span>
-                          <span className="text-3xl font-bold block font-mono leading-none">Kes {feeBalance.toLocaleString()}</span>
-                          <div className="pt-2 border-t border-[#34495E] flex justify-between items-center text-[10px] text-slate-350">
-                            <span>NOMINAL CLASSIFICATION STATE:</span>
-                            <span className={feeBalance === 0 ? 'text-[#2ECC71] font-bold' : 'text-[#F1C40F] font-bold animate-pulse'}>
-                              {feeBalance === 0 ? 'CLEARED' : 'PENDING'}
-                            </span>
-                          </div>
-                        </div>
-                      </fieldset>
-                    </div>
                   </div>
                 </div>
               )}
@@ -871,7 +779,7 @@ export function StudentPortal({
                 <fieldset className="border border-zinc-300 p-5 rounded-md text-left">
                   <legend className="text-xs font-black text-dark bg-white px-2">Validated payment receipt logs</legend>
                   <p className="text-xs text-zinc-405 mb-4 font-sans">
-                    These receipt vouchers represent credits processed and authorized by student finance operations against active outstanding fees accounts structure.
+                    These receipt vouchers represent modules processed and authorized by student finance operations against active outstanding fees accounts structure.
                   </p>
 
                   <table className="w-full border-collapse border border-zinc-300 text-xs font-sans text-left">
@@ -950,26 +858,31 @@ export function StudentPortal({
                     Verify locations, timeslots, and assigned halls for your medicine cohort study sequence classrooms below. Rooms are refreshed on sem boundary updates.
                   </p>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 font-sans text-xs">
-                    {classes.filter(c => c.programCode === student.programCode).map((cls) => (
-                      <div key={cls.name} className="p-3 bg-[#FCFCFC] border border-zinc-250 rounded shadow-xs relative flex flex-col justify-between select-none">
-                        <div className="flex justify-between items-start border-b border-zinc-100 pb-1.5">
-                          <span className="bg-accent font-mono text-[8px] font-bold text-blue-800 px-1.5 py-0.5 rounded">HALL {cls.roomNumber}</span>
-                          <span className="text-[8px] font-bold tracking-wider uppercase text-zinc-400">Rotative sequence</span>
-                        </div>
-                        <div className="py-2">
-                          <h4 className="font-serif font-bold text-xs text-zinc-900 leading-tight">{cls.name}</h4>
-                          <span className="text-[9px] text-zinc-400 block mt-1 font-mono">Class Roll ID: {cls.cohortName}</span>
-                        </div>
-                        <div className="pt-1.5 border-t border-zinc-100 flex justify-between items-center text-[10px] font-mono font-semibold text-zinc-505">
-                          <div>
-                            <span className="block text-zinc-700">{cls.scheduleDays.join(' & ')}</span>
-                            <span className="text-[9px] italic text-zinc-400">{cls.scheduleTime}</span>
-                          </div>
-                          <span className="text-dark font-bold uppercase text-[8px]">Co-Clinical</span>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse border border-zinc-300 text-xs font-sans text-left">
+                      <thead className="bg-primary text-white">
+                        <tr>
+                          <th className="border border-primary/40 p-2">Timetable</th>
+                          <th className="border border-primary/40 p-2">Module</th>
+                          <th className="border border-primary/40 p-2">Cohort</th>
+                          <th className="border border-primary/40 p-2">Days</th>
+                          <th className="border border-primary/40 p-2">Time</th>
+                          <th className="border border-primary/40 p-2">Room</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {classes.filter(c => c.programCode === student.programCode).map((cls) => (
+                          <tr key={cls.name} className="hover:bg-zinc-50">
+                            <td className="border border-zinc-300 p-2 font-bold">{cls.name}</td>
+                            <td className="border border-zinc-300 p-2 font-mono">{cls.moduleCode || 'Assigned module'}</td>
+                            <td className="border border-zinc-300 p-2">{cls.cohortName}</td>
+                            <td className="border border-zinc-300 p-2">{cls.scheduleDays.join(', ')}</td>
+                            <td className="border border-zinc-300 p-2 font-mono">{cls.scheduleTime}</td>
+                            <td className="border border-zinc-300 p-2">{cls.roomNumber}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </fieldset>
               )}
@@ -985,11 +898,11 @@ export function StudentPortal({
 
                     <div className="space-y-3 font-sans text-xs">
                       <div className="flex justify-between border-b border-zinc-200 pb-1.5">
-                        <span className="font-semibold text-zinc-505">Enrolled Course Curriculum:</span>
+                        <span className="font-semibold text-zinc-505">Enrolled Module Curriculum:</span>
                         <span className="font-bold text-zinc-902">{program?.name || 'Science track'}</span>
                       </div>
                       <div className="flex justify-between border-b border-zinc-200 pb-1.5">
-                        <span className="font-semibold text-zinc-505">University registry group:</span>
+                        <span className="font-semibold text-zinc-505">RHTI registry group:</span>
                         <span className="font-bold text-zinc-902 font-mono">{student.assignedClass}</span>
                       </div>
                       <div className="flex justify-between border-b border-zinc-200 pb-1.5">
@@ -1020,17 +933,17 @@ export function StudentPortal({
               {/* Units */}
               {activeSubTab === 'units' && (
                 <fieldset className="border border-zinc-300 p-5 rounded-md text-left">
-                  <legend className="text-xs font-black text-dark bg-white px-2">Assigned registered core study units (Modules)</legend>
+                  <legend className="text-xs font-black text-dark bg-white px-2">Registered Units List</legend>
                   <p className="text-xs text-zinc-405 mb-4 leading-relaxed font-sans">
-                    These clinical unit modules correspond to the active coursework requirements established by the university registry for your assigned study direction.
+                    These modules are assigned to your program and cohort from the administration registry.
                   </p>
 
                   <table className="w-full border-collapse border border-zinc-300 text-xs font-sans text-left select-none">
                     <thead>
                       <tr className="bg-[#9ACCE6] text-black font-bold">
                         <th className="border border-zinc-300 p-2.5">Module Code</th>
-                        <th className="border border-zinc-300 p-2.5">Core Syllabus Description</th>
-                        <th className="border border-zinc-300 p-2.5">Credit score</th>
+                        <th className="border border-zinc-300 p-2.5">Module Name</th>
+                        <th className="border border-zinc-300 p-2.5">Program</th>
                         <th className="border border-zinc-300 p-2.5">Registry Verdict</th>
                       </tr>
                     </thead>
@@ -1039,7 +952,7 @@ export function StudentPortal({
                         <tr key={m.code} className="hover:bg-slate-50">
                           <td className="border border-zinc-300 p-2.5 font-mono font-bold text-dark">{m.code}</td>
                           <td className="border border-zinc-300 p-2.5 font-bold">{m.name}</td>
-                          <td className="border border-zinc-300 p-2.5 font-mono">1.0 Units</td>
+                          <td className="border border-zinc-300 p-2.5 font-mono">{m.programCode}</td>
                           <td className="border border-zinc-300 p-2.5 font-bold uppercase text-emerald-800">ENROLLED ACTIVE</td>
                         </tr>
                       ))}
@@ -1053,7 +966,7 @@ export function StudentPortal({
                 <fieldset className="border border-zinc-300 p-5 rounded-md text-left">
                   <legend className="text-xs font-black text-dark bg-white px-2">Virtual Syllabus Materials & Document store</legend>
                   <p className="text-xs text-[#7F8C8D] mb-4 font-sans leading-relaxed">
-                    Download core study references, anatomical checklists, and lesson presentations compiled and assigned to your clinical track semesters.
+                    Download core study references, anatomical checklists, and lesson presentations compiled and assigned to your clinical track modules.
                   </p>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-sans text-xs">
@@ -1079,113 +992,6 @@ export function StudentPortal({
                 </fieldset>
               )}
 
-              {/* Lecturers */}
-              {activeSubTab === 'lecturers' && (
-                <fieldset className="border border-zinc-300 p-5 rounded-md text-left">
-                  <legend className="text-xs font-black text-dark bg-white px-2">Lecturers & Lecturer advisors Directory</legend>
-                  <p className="text-xs text-[#7F8C8D] mb-4 leading-relaxed font-sans">
-                    These clinical instructors and research advisors organize curriculum modules on behalf of the deans department study direction.
-                  </p>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-sans text-xs">
-                    {classes.filter(c => c.programCode === student.programCode).map((cls, idx) => (
-                      <div key={idx} className="p-3.5 bg-[#FCFCFC] border border-zinc-250 rounded flex items-center justify-between gap-4">
-                        <div className="leading-relaxed select-none">
-                          <span className="font-bold text-zinc-900 block text-xs">Professor Nairobi Advisor {idx + 1}</span>
-                          <span className="text-[10px] text-zinc-404 block">{cls.name} Curriculum Specialist</span>
-                          <span className="text-[9px] text-[#2980B9] font-mono mt-0.5 block">Contact desk: SCI-RM-{110 + idx}</span>
-                        </div>
-
-                        <button
-                          onClick={() => showToast(`Dialogue successfully scheduled inside UON instructor communications threads.`)}
-                          className="bg-zinc-200 hover:bg-zinc-300 text-black font-bold uppercase text-[9px] px-3 py-1.5 rounded transition"
-                        >
-                          Send Message
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </fieldset>
-              )}
-
-            </div>
-          )}
-
-
-          {/* ============ TAB: COURSE EVALUATION ============ */}
-          {activeTab === 'evaluation' && (
-            <div className="space-y-6">
-              <fieldset className="border border-zinc-300 p-5 rounded-md text-left">
-                    <legend className="text-xs font-black text-dark bg-white px-2">Module Evaluation Forms</legend>
-                <p className="text-xs text-zinc-405 leading-relaxed mb-4 font-sans">
-                  The Radiant Hospital Training Institute registry expects students to evaluate all registered classroom study sequences to capture feedback. Your responses are anonymized.
-                </p>
-
-                <div className="space-y-4 text-xs font-sans">
-                  {studentModules.map((m) => {
-                    const isDone = completedEvaluations.includes(m.code);
-                    return (
-                      <div key={m.code} className="p-4 bg-[#FCFCFC] border border-zinc-200 rounded space-y-3">
-                        <div className="flex justify-between items-center border-b border-zinc-150 pb-2">
-                          <span className="font-bold text-sm text-blue-950 font-serif">{m.name} ({m.code})</span>
-                          <span className={`px-2 py-0.5 rounded font-mono font-bold text-[8px] ${
-                            isDone ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'
-                          }`}>
-                            {isDone ? 'COMPLETED' : 'PENDING EVALUATION'}
-                          </span>
-                        </div>
-
-                        {!isDone && (
-                          <div className="space-y-3">
-                            <div className="space-y-2">
-                              <span className="font-bold block text-zinc-702">1. rate the lecturer's teaching efficiency and visual presentations:</span>
-                              <div className="flex items-center space-x-4">
-                                {[1, 2, 3, 4, 5].map((stars) => (
-                                  <label key={stars} className="flex items-center space-x-1 cursor-pointer">
-                                    <input 
-                                      type="radio" 
-                                      name={`star-${m.code}`} 
-                                      value={stars} 
-                                      onClick={() => setEvaluationFeedback(prev => ({ ...prev, [`${m.code}-teach`]: stars }))}
-                                      className="cursor-pointer"
-                                    />
-                                    <span>{stars} ({stars === 5 ? 'Excellent' : stars === 1 ? 'Poor' : stars})</span>
-                                  </label>
-                                ))}
-                              </div>
-                            </div>
-
-                            <div className="space-y-2 pt-1">
-                              <span className="font-bold block text-zinc-702">2. the curriculum modules coverage matched the exams structure criteria:</span>
-                              <div className="flex items-center space-x-4">
-                                {[1, 2, 3, 4, 5].map((stars) => (
-                                  <label key={stars} className="flex items-center space-x-1 cursor-pointer">
-                                    <input 
-                                      type="radio" 
-                                      name={`star-${m.code}-coverage`} 
-                                      value={stars} 
-                                      onClick={() => setEvaluationFeedback(prev => ({ ...prev, [`${m.code}-cover`]: stars }))}
-                                      className="cursor-pointer"
-                                    />
-                                    <span>{stars}</span>
-                                  </label>
-                                ))}
-                              </div>
-                            </div>
-
-                            <button
-                              onClick={() => handleEvaluationSubmit(m.code)}
-                              className="bg-[#2C3E50] hover:bg-zinc-800 text-white font-bold uppercase text-[9px] px-3.5 py-1.5 rounded transition"
-                            >
-                              Submit appraisal
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </fieldset>
             </div>
           )}
 
@@ -1197,41 +1003,45 @@ export function StudentPortal({
               {/* Grades */}
               {activeSubTab === 'grades' && (
                 <fieldset className="border border-zinc-300 p-5 rounded-md text-left">
-                  <legend className="text-xs font-black text-dark bg-white px-2">Published Semester Results marksheets</legend>
+                  <legend className="text-xs font-black text-dark bg-white px-2">Published Module Results marksheets</legend>
                   <p className="text-xs text-zinc-405 mb-4 leading-relaxed font-sans">
-                    These exam grades compiled by the clinical boards division reflect cumulative test standing scores obtained across authorized academic year semesters.
+                    These exam grades compiled by the clinical boards division reflect cumulative test standing scores obtained across authorized academic year modules.
                   </p>
 
                   <table className="w-full border-collapse border border-zinc-300 text-xs font-sans text-left">
                     <thead>
-                      <tr className="bg-[#9ACCE6] text-black font-bold">
+                      <tr className="bg-primary text-white font-bold">
                         <th className="border border-zinc-300 p-2.5">Module Code</th>
                         <th className="border border-zinc-300 p-2.5">Core Syllabus Description</th>
-                        <th className="border border-zinc-300 p-2.5">Score Marks</th>
+                        <th className="border border-zinc-300 p-2.5">CAT Score (30%)</th>
+                        <th className="border border-zinc-300 p-2.5">Exam Score (70%)</th>
+                        <th className="border border-zinc-300 p-2.5">Final Score</th>
                         <th className="border border-zinc-300 p-2.5">Grade Verdict</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {studentResults.length > 0 ? (
-                        studentResults.map((r, i) => (
-                          <tr key={i} className="hover:bg-slate-50">
-                            <td className="border border-zinc-300 p-2.5 font-mono font-bold text-dark">{r.moduleCode}</td>
-                            <td className="border border-zinc-300 p-2.5">{exams.find(e => e.id === r.examId)?.name || 'Coursework Practical Assessment'}</td>
-                            <td className="border border-zinc-300 p-2.5 font-mono font-bold text-zinc-901">{r.marks}% Marks</td>
+                      {moduleResultRows.some((row) => row.hasResults) ? (
+                        moduleResultRows.filter((row) => row.hasResults).map((row) => (
+                          <tr key={row.module.code} className="hover:bg-slate-50">
+                            <td className="border border-zinc-300 p-2.5 font-mono font-bold text-dark">{row.module.code}</td>
+                            <td className="border border-zinc-300 p-2.5">{row.module.name}</td>
+                            <td className="border border-zinc-300 p-2.5 font-mono font-bold text-zinc-901">{row.catAverage.toFixed(1)}%</td>
+                            <td className="border border-zinc-300 p-2.5 font-mono font-bold text-zinc-901">{row.examPercent.toFixed(1)}%</td>
+                            <td className="border border-zinc-300 p-2.5 font-mono font-black text-primary">{row.finalScore}%</td>
                             <td className="border border-zinc-300 p-2.5">
                               <span className={`px-2.5 py-0.5 rounded font-bold font-mono ${
-                                r.grade === 'A' ? 'bg-emerald-50 text-emerald-805' :
-                                r.grade === 'B' ? 'bg-indigo-50 text-indigo-805' :
+                                row.grade === 'A' ? 'bg-emerald-50 text-emerald-805' :
+                                row.grade === 'B' ? 'bg-indigo-50 text-indigo-805' :
                                 'bg-teal-50 text-teal-805'
                               }`}>
-                                {r.grade} ({r.status.toUpperCase()})
+                                {row.grade} ({row.verdict.toUpperCase()})
                               </span>
                             </td>
                           </tr>
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={4} className="border border-zinc-3b p-6 text-center text-zinc-400 italic">No published marks record files found in this matric cohort user.</td>
+                          <td colSpan={6} className="border border-zinc-3b p-6 text-center text-zinc-400 italic">No published marks record files found in this matric cohort user.</td>
                         </tr>
                       )}
                     </tbody>
@@ -1252,19 +1062,19 @@ export function StudentPortal({
                       <thead>
                         <tr className="bg-[#9ACCE6] text-black">
                           <th className="border border-zinc-300 p-2">Roster Session Rank</th>
-                          <th className="border border-zinc-300 p-2">Weighted GPA</th>
+                          <th className="border border-zinc-300 p-2">Grade Standing</th>
                         </tr>
                       </thead>
                       <tbody>
                         <tr>
                           <td className="border border-zinc-300 p-2 font-bold">Clinical Medicine Year II</td>
-                          <td className="border border-zinc-300 p-2 font-mono font-extrabold text-blue-901">{calculateGPA()} GPA</td>
+                          <td className="border border-zinc-300 p-2 font-mono font-extrabold text-blue-901">{studentResults[0]?.grade || 'Pending'}</td>
                         </tr>
                       </tbody>
                     </table>
 
                     <button
-                      onClick={() => showToast(`Transcript compiled as secure PDF representation. Generated document code: UON_TRANS_${student.id}.pdf`)}
+                      onClick={() => showToast(`Transcript compiled as secure PDF representation. Generated document code: RHTI_TRANS_${student.id}.pdf`)}
                       className="bg-[#2C3E50] hover:bg-zinc-800 text-white font-bold uppercase text-[9px] px-4 py-2 rounded shadow-xs"
                     >
                       Compile Certified PDF Representation
@@ -1329,53 +1139,54 @@ export function StudentPortal({
               {activeSubTab === 'booking' && (
                 <div>
                   <fieldset className="border border-zinc-300 p-5 rounded-md">
-                    <legend className="text-xs font-black text-dark bg-white px-2">Choose Hostel Cubicle (Rooms slot Map)</legend>
+                    <legend className="text-xs font-black text-dark bg-white px-2">School Accommodation</legend>
                     <p className="text-xs text-zinc-403 leading-relaxed mb-4">
                       Allocation of cubicles is structured automatically against dynamic tuition wallet reserves. Confirm availability before reserving slots.
                     </p>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 font-sans text-xs">
-                      {rooms.filter(r => r.type === 'hostel').map((room) => {
-                        const isReserved = studentBookings.find(b => b.roomNumber === room.roomNumber && b.status === 'active');
-                        return (
-                          <div key={room.roomNumber} className="bg-[#FCFCFC] border border-zinc-250 rounded p-4 flex flex-col justify-between space-y-3 shadow-xs">
-                            <div className="flex justify-between items-start border-b border-zinc-100 pb-1.5">
-                              <div>
-                                <span className="font-extrabold text-zinc-909 block">Cubicle Node {room.roomNumber}</span>
-                                <span className="text-[10px] text-zinc-400 font-mono block">Residency Hall 4 slot</span>
-                              </div>
-                              <span className={`px-2 py-0.5 rounded text-[8.5px] font-bold font-mono ${
-                                room.status === 'available' ? 'bg-emerald-50 text-emerald-800 border border-emerald-150' : 'bg-rose-50 text-rose-800 border border-rose-150'
-                              }`}>
-                                {room.status === 'available' ? 'VACANT' : 'OCCUPIED'}
-                              </span>
-                            </div>
-
-                            <div className="flex flex-wrap gap-1 py-1">
-                              {room.facilities.map((f, idx) => (
-                                <span key={idx} className="bg-zinc-200 text-zinc-702 px-1.5 py-0.5 rounded font-mono text-[8.5px] uppercase font-bold">{f}</span>
-                              ))}
-                            </div>
-
-                            <div className="pt-1.5 border-t border-zinc-100 flex justify-between items-center gap-4">
-                              <span className="font-mono font-bold text-zinc-900 text-xs">Kes {(room.hostelFee || 8500).toLocaleString()}<span className="text-[9px] text-zinc-405 font-sans font-normal"> /Sem</span></span>
-                              
-                              {isReserved ? (
-                                <span className="text-[#27AE60] font-black text-[9px] uppercase font-mono">✓ Reserved active</span>
-                              ) : room.status === 'available' ? (
-                                <button
-                                  onClick={() => executeRoomBooking(room)}
-                                  className="bg-[#2C3E50] hover:bg-zinc-800 text-white font-bold uppercase text-[9px] px-3.5 py-1.5 rounded transition"
-                                >
-                                  Reserve slot
-                                </button>
-                              ) : (
-                                <span className="text-zinc-400 italic text-[9px] font-semibold">Slot Occupied</span>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse border border-zinc-300 text-xs font-sans text-left">
+                        <thead>
+                          <tr className="font-bold">
+                            <th className="border border-zinc-300 p-2.5">Accommodation</th>
+                            <th className="border border-zinc-300 p-2.5">Status</th>
+                            <th className="border border-zinc-300 p-2.5">Payment</th>
+                            <th className="border border-zinc-300 p-2.5">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rooms.filter(r => r.type === 'hostel').map((room) => {
+                            const allocatedBooking = hostelBookings.find(b => b.roomNumber === room.roomNumber && ['active', 'approved'].includes(b.status));
+                            const isReserved = studentBookings.find(b => b.roomNumber === room.roomNumber && ['active', 'approved'].includes(b.status));
+                            const isAvailable = !allocatedBooking && room.status === 'available';
+                            return (
+                              <tr key={room.roomNumber} className="hover:bg-zinc-50">
+                                <td className="border border-zinc-300 p-2.5 font-bold">{room.roomNumber}</td>
+                                <td className="border border-zinc-300 p-2.5">
+                                  <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${isAvailable ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-800'}`}>
+                                    {isAvailable ? 'Available' : 'Allocated'}
+                                  </span>
+                                </td>
+                                <td className="border border-zinc-300 p-2.5 font-bold">{isReserved ? 'Paid' : 'Not paid'}</td>
+                                <td className="border border-zinc-300 p-2.5">
+                                  {isReserved ? (
+                                    <span className="text-emerald-700 font-bold">Allocated to you</span>
+                                  ) : !hasAllocatedAccommodation && isAvailable ? (
+                                    <button
+                                      onClick={() => executeRoomBooking(room)}
+                                      className="bg-[#2C3E50] hover:bg-zinc-800 text-white font-bold uppercase text-[9px] px-3.5 py-1.5 rounded transition"
+                                    >
+                                      STK Pay
+                                    </button>
+                                  ) : (
+                                    <span className="text-zinc-400 italic font-semibold">{hasAllocatedAccommodation ? 'Already allocated' : 'Unavailable'}</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   </fieldset>
                 </div>
@@ -1386,17 +1197,26 @@ export function StudentPortal({
                 <div className="max-w-xl mx-auto">
                   <fieldset className="border border-zinc-300 p-5 rounded-md">
                     <legend className="text-xs font-black text-dark bg-white px-2">Active hostel allocation histories</legend>
-                    <div className="space-y-3 text-xs">
+                    <div className="overflow-x-auto text-xs">
                       {studentBookings.length > 0 ? (
-                        studentBookings.map((b) => (
-                          <div key={b.id} className="p-3 bg-[#FCFCFC] border border-zinc-200 rounded flex justify-between items-center">
-                            <div>
-                              <span className="font-extrabold text-[#1F40AF] block text-xs">Hall 4 Cubicle Bunk {b.roomNumber}</span>
-                              <span className="text-[10px] text-zinc-400 font-mono mt-0.5 block">Allocation code ID: {b.id} • Assigned date: {b.bookingDate}</span>
-                            </div>
-                            <span className="bg-emerald-50 text-emerald-800 border border-emerald-150 px-2.5 py-1 rounded font-bold font-mono">PAID & COMPLIANT</span>
-                          </div>
-                        ))
+                        <table className="w-full border-collapse border border-zinc-300 text-left">
+                          <thead>
+                            <tr className="font-bold">
+                              <th className="border border-zinc-300 p-2.5">Accommodation</th>
+                              <th className="border border-zinc-300 p-2.5">Status</th>
+                              <th className="border border-zinc-300 p-2.5">Payment</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {studentBookings.slice(0, 1).map((b) => (
+                              <tr key={b.id}>
+                                <td className="border border-zinc-300 p-2.5 font-bold">{b.roomNumber}</td>
+                                <td className="border border-zinc-300 p-2.5">{b.status}</td>
+                                <td className="border border-zinc-300 p-2.5 font-bold text-emerald-700">{b.paymentStatus || 'paid'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       ) : (
                         <div className="p-6 bg-slate-50/50 text-center text-zinc-451 italic">No physical housing slot coordinates assigned in active matric register records.</div>
                       )}
@@ -1418,7 +1238,7 @@ export function StudentPortal({
                 <fieldset className="border border-zinc-300 p-5 rounded-md text-left bg-[#FCFCFC]">
                   <legend className="text-xs font-black text-dark bg-white px-2">ICT Center Helpdesk support thread</legend>
                   <p className="text-xs text-zinc-405 mb-4 leading-relaxed font-sans">
-                    Monitor progress or liaison responses of filed queries with the university client support core desks below.
+                    Monitor progress or liaison responses of filed queries with the RHTI client support core desks below.
                   </p>
 
                   <div className="space-y-3 text-xs">
@@ -1448,14 +1268,22 @@ export function StudentPortal({
                     <form onSubmit={handleEnquirySubmit} className="space-y-4 text-xs font-sans">
                       <div className="space-y-1">
                         <label className="font-bold text-zinc-702 block">Subject category of enquiry:</label>
-                        <input
-                          type="text"
+                        <select
                           required
                           value={enquirySubject}
                           onChange={(e) => setEnquirySubject(e.target.value)}
-                          placeholder="e.g. nominal list exclusion issue"
                           className="w-full border border-zinc-300 p-2 bg-white font-bold rounded focus:border-[#526E90] outline-none"
-                        />
+                        >
+                          <option value="">Select enquiry subject</option>
+                          <option value="Fees">Fees</option>
+                          <option value="Accommodation">Accommodation</option>
+                          <option value="IT Support">IT Support</option>
+                          <option value="Admissions">Admissions</option>
+                          <option value="Exams and Results">Exams and Results</option>
+                          <option value="Learning Materials">Learning Materials</option>
+                          <option value="Clinical Rotations">Clinical Rotations</option>
+                          <option value="Student Records">Student Records</option>
+                        </select>
                       </div>
 
                       <div className="space-y-1">

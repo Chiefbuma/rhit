@@ -120,34 +120,49 @@ export default function Home() {
   const [formStep, setFormStep] = useState(1);
   const [showAllGallery, setShowAllGallery] = useState(false);
   const [applicationStatus, setApplicationStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
+  const [applicationForm, setApplicationForm] = useState({
+    full_name: "",
+    email: "",
+    phone: "",
+    date_of_birth: "",
+    program: "",
+    kcse_mean_grade: "",
+    kcse_year: "",
+  });
+
+  function updateApplicationField(field: keyof typeof applicationForm, value: string) {
+    setApplicationStatus("idle");
+    setApplicationForm((current) => ({ ...current, [field]: value }));
+  }
 
   async function handleApplicationSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
 
     if (formStep < 3) {
       setFormStep(formStep + 1);
       return;
     }
 
-    const formData = new FormData(event.currentTarget);
     setApplicationStatus("submitting");
 
     const response = await fetch("/api/applications", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        full_name: formData.get("full_name"),
-        email: formData.get("email"),
-        phone: formData.get("phone"),
-        date_of_birth: formData.get("date_of_birth"),
-        program: formData.get("program"),
-        kcse_mean_grade: formData.get("kcse_mean_grade"),
-        kcse_year: formData.get("kcse_year"),
-      }),
+      body: JSON.stringify(applicationForm),
     });
 
     if (response.ok) {
-      event.currentTarget.reset();
+      form.reset();
+      setApplicationForm({
+        full_name: "",
+        email: "",
+        phone: "",
+        date_of_birth: "",
+        program: "",
+        kcse_mean_grade: "",
+        kcse_year: "",
+      });
       setFormStep(1);
       setApplicationStatus("success");
     } else {
@@ -932,19 +947,19 @@ export default function Home() {
                     <div className="grid sm:grid-cols-2 gap-4 md:gap-8">
                       <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-dark/80 ml-1">Full Name</label>
-                        <input name="full_name" type="text" placeholder="John Doe" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-medium text-sm md:text-base" required />
+                        <input name="full_name" type="text" value={applicationForm.full_name} onChange={(event) => updateApplicationField("full_name", event.target.value)} placeholder="John Doe" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-medium text-sm md:text-base" required />
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-dark/80 ml-1">Email Address</label>
-                        <input name="email" type="email" placeholder="john@example.com" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-medium text-sm md:text-base" required />
+                        <input name="email" type="email" value={applicationForm.email} onChange={(event) => updateApplicationField("email", event.target.value)} placeholder="john@example.com" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-medium text-sm md:text-base" required />
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-dark/80 ml-1">Phone Number</label>
-                        <input name="phone" type="tel" placeholder="0700 000 000" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-medium text-sm md:text-base" required />
+                        <input name="phone" type="tel" value={applicationForm.phone} onChange={(event) => updateApplicationField("phone", event.target.value)} placeholder="0700 000 000" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-medium text-sm md:text-base" required />
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-dark/80 ml-1">Date of Birth</label>
-                        <input name="date_of_birth" type="date" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-medium text-sm md:text-base" required />
+                        <input name="date_of_birth" type="date" value={applicationForm.date_of_birth} onChange={(event) => updateApplicationField("date_of_birth", event.target.value)} className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-medium text-sm md:text-base" required />
                       </div>
                     </div>
                   </motion.div>
@@ -956,7 +971,7 @@ export default function Home() {
                     <div className="space-y-4 md:space-y-8">
                       <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-dark/40 ml-1">Select Program</label>
-                        <select name="program" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-bold text-dark text-sm md:text-base" required>
+                        <select name="program" value={applicationForm.program} onChange={(event) => updateApplicationField("program", event.target.value)} className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-bold text-dark text-sm md:text-base" required>
                           <option value="">Choose a certificate program...</option>
                           <option value="cna">Certificate in Nursing Assistant (CNA)</option>
                           <option value="hrit">Certificate in Health Records (HRIT)</option>
@@ -966,11 +981,11 @@ export default function Home() {
                       <div className="grid sm:grid-cols-2 gap-4 md:gap-8">
                         <div className="space-y-2">
                           <label className="text-[10px] font-black uppercase tracking-widest text-dark/40 ml-1">KCSE Mean Grade</label>
-                          <input name="kcse_mean_grade" type="text" placeholder="e.g. C-" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-medium text-sm md:text-base" required />
+                          <input name="kcse_mean_grade" type="text" value={applicationForm.kcse_mean_grade} onChange={(event) => updateApplicationField("kcse_mean_grade", event.target.value)} placeholder="e.g. C-" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-medium text-sm md:text-base" required />
                         </div>
                         <div className="space-y-2">
                           <label className="text-[10px] font-black uppercase tracking-widest text-dark/40 ml-1">KCSE Year</label>
-                          <input name="kcse_year" type="number" placeholder="2023" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-medium text-sm md:text-base" required />
+                          <input name="kcse_year" type="number" value={applicationForm.kcse_year} onChange={(event) => updateApplicationField("kcse_year", event.target.value)} placeholder="2023" className="w-full bg-accent/20 border-b-2 border-dark/10 p-4 focus:border-primary outline-none transition-all font-medium text-sm md:text-base" required />
                         </div>
                       </div>
                     </div>

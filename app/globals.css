@@ -88,6 +88,59 @@
     transform: skewX(-18deg);
   }
 
+  .portal-slide-form label {
+    display: block;
+    min-width: 0;
+    margin-bottom: 0.35rem;
+    text-align: left !important;
+    font-weight: 700;
+  }
+
+  .portal-slide-form input,
+  .portal-slide-form select,
+  .portal-slide-form textarea {
+    border-style: solid;
+    border-color: #d4d4d8;
+    border-radius: 0.5rem;
+  }
+
+  .portal-slide-form > div:not(.sticky) > div:not(.space-y-4):has(> label) {
+    display: grid;
+    grid-template-columns: minmax(7rem, 9rem) minmax(0, 1fr);
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .portal-slide-form > div:not(.sticky) > div:not(.space-y-4):has(> label) > label {
+    margin-bottom: 0;
+    text-align: left !important;
+  }
+
+  .portal-slide-form .grid > div:has(> label),
+  .portal-slide-form .space-y-4 > div:has(> label) {
+    display: grid;
+    grid-template-columns: minmax(7rem, 9rem) minmax(0, 1fr);
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .portal-slide-form .grid > div:has(> label) > label,
+  .portal-slide-form .space-y-4 > div:has(> label) > label {
+    margin-bottom: 0;
+    text-align: left !important;
+  }
+
+  .school-portal-shell table thead,
+  .school-portal-shell table thead tr {
+    background: #f3f4f6 !important;
+    color: #334155 !important;
+  }
+
+  .school-portal-shell table thead th {
+    border-color: #d4d4d8 !important;
+    color: #334155 !important;
+  }
+
   .skew-28 {
     transform: skewX(28deg);
   }

@@ -41,19 +41,17 @@ export function Modal({ isOpen, onClose, title, children, isDirty = false }: Mod
     <AnimatePresence>
       {isOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto"
+          className="fixed inset-0 z-50 flex justify-end bg-slate-950/45 backdrop-blur-sm"
           onClick={handleBackdropClick}
         >
-          {/* Framer motion window wrapper */}
           <motion.div
-            initial={{ opacity: 0, y: 100, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 100, scale: 0.95 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 250 }}
-            className="relative w-full max-w-2xl bg-white rounded-t-2xl sm:rounded-2xl border border-zinc-200 shadow-xl overflow-hidden flex flex-col max-h-[90vh]"
+            initial={{ opacity: 0, x: 80 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 80 }}
+            transition={{ type: 'spring', damping: 28, stiffness: 260 }}
+            className="relative h-full w-full max-w-md bg-white border-l border-primary/30 shadow-2xl overflow-hidden flex flex-col"
           >
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-4 border-b border-dark bg-[#0D233A] text-white">
+            <div className="flex items-center justify-between p-5 border-b border-primary/30 bg-primary text-white">
               <h3 className="text-sm font-black uppercase tracking-wider leading-none">
                 {title}
               </h3>
@@ -66,8 +64,7 @@ export function Modal({ isOpen, onClose, title, children, isDirty = false }: Mod
               </button>
             </div>
 
-            {/* Modal Body */}
-            <div className="p-6 overflow-y-auto flex-1">
+            <div className="p-4 overflow-y-auto flex-1 bg-[#f8f8f0]">
               {children}
             </div>
           </motion.div>

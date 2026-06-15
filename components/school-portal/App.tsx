@@ -274,6 +274,7 @@ export default function App({ initialSession }: AppProps) {
         <AdminPortal 
           state={state} 
           setAppState={setState} 
+          onLogout={handleLogout}
         />
       );
     } else {

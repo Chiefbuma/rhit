@@ -91,6 +91,7 @@ export interface Class {
   name: string; // e.g., CNA-01-A
   cohortName: string; // e.g., CNA-01
   programCode: string;
+  moduleCode?: string;
   roomNumber: string;
   scheduleTime: string; // e.g. "08:00 AM - 11:00 AM"
   scheduleDays: string[]; // e.g. ["Monday", "Wednesday"]
@@ -145,7 +146,7 @@ export interface ExamResult {
   marks: number;
   grade: string; // Auto-calculated A, B, C, D, F
   comments: string;
-  status: 'Pass' | 'Fail';
+  status: 'Pass' | 'Fail' | 'Recorded';
 }
 
 export interface CourseFee {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { getInitialState } from "@/components/school-portal/mockData";
+import { getCurrentUser } from "@/lib/auth";
 
 const STATE_KEY = "school_portal";
 
@@ -39,6 +40,11 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user || (!user.roles.includes("admin") && !user.roles.includes("student"))) {
+    return NextResponse.json({ error: "Authenticated portal access is required." }, { status: 403 });
+  }
+
   const body = await request.json();
   if (!body?.state || typeof body.state !== "object") {
     return NextResponse.json({ error: "State payload is required." }, { status: 400 });
